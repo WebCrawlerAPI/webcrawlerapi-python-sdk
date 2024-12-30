@@ -1,3 +1,18 @@
 build/
 .idea/
 dist/
+
+# Python package build artifacts
+*.egg-info/
+*.egg
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+env/
+.env/
+.venv/

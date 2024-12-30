@@ -16,8 +16,19 @@ from webcrawlerapi import WebCrawlerAPI
 # Initialize the client
 crawler = WebCrawlerAPI(api_key="your_api_key")
 
-# Start a crawling job
-response = crawler.crawl(
+# Synchronous crawling (blocks until completion)
+job = crawler.crawl(
+    url="https://example.com",
+    scrape_type="markdown",
+    items_limit=10,
+    webhook_url="https://yourserver.com/webhook",
+    allow_subdomains=False,
+    max_polls=100  # Optional: maximum number of status checks
+)
+print(f"Job completed with status: {job.status}")
+
+# Or use asynchronous crawling
+response = crawler.crawl_async(
     url="https://example.com",
     scrape_type="markdown",
     items_limit=10,
@@ -26,7 +37,7 @@ response = crawler.crawl(
 )
 
 # Get the job ID from the response
-job_id = response["job_id"]
+job_id = response.id
 print(f"Crawling job started with ID: {job_id}")
 
 # Check job status and get results
@@ -52,7 +63,13 @@ print(f"Cancellation response: {cancel_response['message']}")
 ## API Methods
 
 ### crawl()
-Starts a new crawling job with the specified parameters.
+Starts a new crawling job and waits for its completion. This method will continuously poll the job status until:
+- The job reaches a terminal state (done, error, or cancelled)
+- The maximum number of polls is reached (default: 100)
+- The polling interval is determined by the server's `recommended_pull_delay_ms` or defaults to 5 seconds
+
+### crawl_async()
+Starts a new crawling job and returns immediately with a job ID. Use this when you want to handle polling and status checks yourself, or when using webhooks.
 
 ### get_job()
 Retrieves the current status and details of a specific job.
@@ -62,7 +79,7 @@ Cancels a running job. Any items that are not in progress or already completed w
 
 ## Parameters
 
-### Crawl Method
+### Crawl Methods (crawl and crawl_async)
 - `url` (required): The seed URL where the crawler starts. Can be any valid URL.
 - `scrape_type` (default: "html"): The type of scraping you want to perform. Can be "html", "cleaned", or "markdown".
 - `items_limit` (default: 10): Crawler will stop when it reaches this limit of pages for this job.
@@ -70,9 +87,15 @@ Cancels a running job. Any items that are not in progress or already completed w
 - `allow_subdomains` (default: False): If True, the crawler will also crawl subdomains.
 - `whitelist_regexp` (optional): A regular expression to whitelist URLs. Only URLs that match the pattern will be crawled.
 - `blacklist_regexp` (optional): A regular expression to blacklist URLs. URLs that match the pattern will be skipped.
+- `max_polls` (optional, crawl only): Maximum number of status checks before returning (default: 100)
 
-### Job Response
+### Responses
 
+#### CrawlAsync Response
+The `crawl_async()` method returns a `CrawlResponse` object with:
+- `id`: The unique identifier of the created job
+
+#### Job Response
 The Job object contains detailed information about the crawling job:
 
 - `id`: The unique identifier of the job
@@ -86,6 +109,7 @@ The Job object contains detailed information about the crawling job:
 - `webhook_status`: The status of the webhook request
 - `webhook_error`: Any error message if the webhook request failed
 - `job_items`: List of JobItem objects representing crawled pages
+- `recommended_pull_delay_ms`: Server-recommended delay between status checks
 
 ### JobItem Properties
 
