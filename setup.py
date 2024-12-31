@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="webcrawlerapi",
-    version="1.0.2",
+    version="1.0.3",
     packages=find_packages(),
     install_requires=[
         "requests>=2.25.0",
