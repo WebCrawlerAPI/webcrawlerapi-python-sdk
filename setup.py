@@ -11,7 +11,7 @@ setup(
     description="Python SDK for WebCrawler API",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
-    url="https://github.com/yourusername/webcrawlerapi-python",
+    url="https://github.com/webcrawlerapi/webcrawlerapi-python-sdk",
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
