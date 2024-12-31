@@ -1,6 +1,8 @@
 # WebCrawler API Python SDK
 
-A Python SDK for interacting with the WebCrawler API.
+A Python SDK for interacting with the WebCrawlerAPI.
+
+## In order to us API you have to get an API key from [WebCrawlerAPI](https://dash.webcrawlerapi.com/access)
 
 ## Installation
 
