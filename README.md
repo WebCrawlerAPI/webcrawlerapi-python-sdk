@@ -27,6 +27,27 @@ job = crawler.crawl(
 )
 print(f"Job completed with status: {job.status}")
 
+# Access job items and their content
+for item in job.job_items:
+    print(f"Page title: {item.title}")
+    print(f"Original URL: {item.original_url}")
+    print(f"Item status: {item.status}")
+    
+    # Get the content based on job's scrape_type
+    # Returns None if item is not in "done" status
+    content = item.content
+    if content:
+        print(f"Content length: {len(content)}")
+        print(f"Content preview: {content[:200]}...")
+    else:
+        print("Content not available or item not done")
+
+# Access job items and their parent job
+for item in job.job_items:
+    print(f"Item URL: {item.original_url}")
+    print(f"Parent job status: {item.job.status}")
+    print(f"Parent job URL: {item.job.url}")
+
 # Or use asynchronous crawling
 response = crawler.crawl_async(
     url="https://example.com",
@@ -48,12 +69,6 @@ print(f"Job status: {job.status}")
 print(f"Crawled URL: {job.url}")
 print(f"Created at: {job.created_at}")
 print(f"Number of items: {len(job.job_items)}")
-
-# Access individual crawled items
-for item in job.job_items:
-    print(f"Page title: {item.title}")
-    print(f"Original URL: {item.original_url}")
-    print(f"Content URL: {item.markdown_content_url}")
 
 # Cancel a running job if needed
 cancel_response = crawler.cancel_job(job_id)
@@ -117,6 +132,7 @@ Each JobItem object represents a crawled page and contains:
 
 - `id`: The unique identifier of the item
 - `job_id`: The parent job identifier
+- `job`: Reference to the parent Job object
 - `original_url`: The URL of the page
 - `page_status_code`: The HTTP status code of the page request
 - `status`: The status of the item (new, in_progress, done, error)
@@ -125,6 +141,7 @@ Each JobItem object represents a crawled page and contains:
 - `cost`: The cost of the item in $
 - `referred_url`: The URL where the page was referred from
 - `last_error`: Any error message if the item failed
+- `content`: The page content based on the job's scrape_type (html, cleaned, or markdown). Returns None if the item's status is not "done" or if content is not available. Content is automatically fetched and cached when accessed.
 - `raw_content_url`: URL to the raw content (if available)
 - `cleaned_content_url`: URL to the cleaned content (if scrape_type is "cleaned")
 - `markdown_content_url`: URL to the markdown content (if scrape_type is "markdown")
