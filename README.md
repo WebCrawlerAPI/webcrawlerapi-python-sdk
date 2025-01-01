@@ -15,6 +15,8 @@ pip install webcrawlerapi
 ```python
 from webcrawlerapi import WebCrawlerAPI
 
+### Crawling
+
 # Initialize the client
 crawler = WebCrawlerAPI(api_key="your_api_key")
 
@@ -25,7 +27,7 @@ job = crawler.crawl(
     items_limit=10,
     webhook_url="https://yourserver.com/webhook",
     allow_subdomains=False,
-    max_polls=100  # Optional: maximum number of status checks
+    max_polls=100  # Optional: maximum number of status checks. Use higher for bigger websites
 )
 print(f"Job completed with status: {job.status}")
 
@@ -77,6 +79,23 @@ cancel_response = crawler.cancel_job(job_id)
 print(f"Cancellation response: {cancel_response['message']}")
 ```
 
+### Scraping
+
+The SDK provides both synchronous and asynchronous methods for single-page scraping using custom scrapers.
+
+```python
+# Synchronous scraping - returns structured data directly
+structured_data = crawler.scrape(
+    crawler_id="webcrawler/url-to-md",  # ID of the custom scraper
+    input_data={
+        "url": "https://example.com"  # Scraper-specific input parameters
+    },
+    webhook_url="https://yourserver.com/webhook",  # Optional webhook
+    max_polls=20  # Optional: maximum number of status checks
+)
+print(structured_data)  # Direct access to scraped data
+```
+
 ## API Methods
 
 ### crawl()
@@ -94,6 +113,15 @@ Retrieves the current status and details of a specific job.
 ### cancel_job()
 Cancels a running job. Any items that are not in progress or already completed will be marked as canceled and will not be charged.
 
+### scrape()
+Starts a new scraping job and waits for its completion. Returns the structured data directly when the scraping is done. This method will continuously poll the status until:
+- The scraping is completed (status: "done")
+- The scraping fails (status: "error")
+- The maximum number of polls is reached (default: 100)
+
+### get_scrape()
+Retrieves the current status, metadata and results of a specific scraping job. Returns a `ScrapeResult` object containing both status information and structured data.
+
 ## Parameters
 
 ### Crawl Methods (crawl and crawl_async)
@@ -105,6 +133,12 @@ Cancels a running job. Any items that are not in progress or already completed w
 - `whitelist_regexp` (optional): A regular expression to whitelist URLs. Only URLs that match the pattern will be crawled.
 - `blacklist_regexp` (optional): A regular expression to blacklist URLs. URLs that match the pattern will be skipped.
 - `max_polls` (optional, crawl only): Maximum number of status checks before returning (default: 100)
+
+### Scrape Methods (scrape and scrape_async)
+- `crawler_id` (required): The ID of the custom scraper.
+- `input_data` (required): The input data for the scraper.
+- `webhook_url` (optional): The URL where the server will send a POST request once the task is completed.
+- `max_polls` (optional, scrape only): Maximum number of status checks before returning (default: 100)
 
 ### Responses
 
