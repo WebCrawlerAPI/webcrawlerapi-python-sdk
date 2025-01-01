@@ -81,10 +81,8 @@ print(f"Cancellation response: {cancel_response['message']}")
 
 ### Scraping
 
-The SDK provides both synchronous and asynchronous methods for single-page scraping using custom scrapers.
-
 ```python
-# Synchronous scraping - returns structured data directly
+# Returns structured data directly
 structured_data = crawler.scrape(
     crawler_id="webcrawler/url-to-md",  # ID of the custom scraper
     input_data={
