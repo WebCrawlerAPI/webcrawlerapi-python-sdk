@@ -12,10 +12,10 @@ pip install webcrawlerapi
 
 ## Usage
 
+### Crawling
+
 ```python
 from webcrawlerapi import WebCrawlerAPI
-
-### Crawling
 
 # Initialize the client
 crawler = WebCrawlerAPI(api_key="your_api_key")
