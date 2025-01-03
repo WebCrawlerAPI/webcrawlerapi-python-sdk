@@ -81,7 +81,7 @@ class WebCrawlerAPI:
             json=payload
         )
         response.raise_for_status()
-        return CrawlResponse(id=response.json()["job_id"])
+        return CrawlResponse(id=response.json()["id"])
 
     def get_job(self, job_id: str) -> Job:
         """
