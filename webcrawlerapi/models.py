@@ -37,6 +37,7 @@ class JobItem:
         self.cost: int = data["cost"]
         self.referred_url: str = data["referred_url"]
         self.last_error: str = data["last_error"]
+        self.error_code: Optional[str] = data.get("error_code")
         
         # Optional content URLs based on scrape_type
         self.raw_content_url: Optional[str] = data.get("raw_content_url")

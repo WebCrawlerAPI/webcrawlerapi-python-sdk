@@ -177,6 +177,7 @@ Each JobItem object represents a crawled page and contains:
 - `cost`: The cost of the item in $
 - `referred_url`: The URL where the page was referred from
 - `last_error`: Any error message if the item failed
+- `error_code`: The error code if the item failed (if available)
 - `content`: The page content based on the job's scrape_type (html, cleaned, or markdown). Returns None if the item's status is not "done" or if content is not available. Content is automatically fetched and cached when accessed.
 - `raw_content_url`: URL to the raw content (if available)
 - `cleaned_content_url`: URL to the cleaned content (if scrape_type is "cleaned")
