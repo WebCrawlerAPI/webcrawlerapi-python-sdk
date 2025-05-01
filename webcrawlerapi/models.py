@@ -141,14 +141,16 @@ class ScrapeResult:
     TERMINAL_STATUSES = {"done", "error"}
     
     def __init__(self, data: Dict[str, Any]):
-        self.id: str = data["id"]
-        self.url: str = data["url"]
-        self.status: str = data["status"]
-        self.crawler_id: str = data["crawler_id"]
-        self.page_status_code: int = data["page_status_code"]
-        self.created_at: datetime = datetime.fromisoformat(data["created_at"].replace(' ', 'T'))
+        self.id: str = data.get("id", "")
+        self.status: str = data.get("status", "")
+        self.crawler_id: str = data.get("crawler_id", "")
+        self.page_status_code: Optional[int] = data.get("page_status_code")
+        self.created_at: Optional[datetime] = None
+        if data.get("created_at"):
+            self.created_at = datetime.fromisoformat(data["created_at"].replace(' ', 'T'))
         self.cost: float = data.get("cost", 0.0)
         self.structured_data: Dict[str, Any] = data.get("structured_data", {})
+        self.input_data: Dict[str, Any] = data.get("input_data", {})
         
         # Optional fields
         self.finished_at: Optional[datetime] = None
