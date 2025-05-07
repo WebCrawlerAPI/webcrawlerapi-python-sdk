@@ -1,5 +1,5 @@
 import requests
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List, Union
 from urllib.parse import urljoin
 import time
 
@@ -8,6 +8,7 @@ from .models import (
     ScrapeResponse,
     Job,
     ScrapeResult,
+    Action,
 )
 
 
@@ -42,7 +43,8 @@ class WebCrawlerAPI:
         webhook_url: Optional[str] = None,
         allow_subdomains: bool = False,
         whitelist_regexp: Optional[str] = None,
-        blacklist_regexp: Optional[str] = None
+        blacklist_regexp: Optional[str] = None,
+        actions: Optional[Union[Action, List[Action]]] = None
     ) -> CrawlResponse:
         """
         Start a new crawling job asynchronously.
@@ -55,6 +57,7 @@ class WebCrawlerAPI:
             allow_subdomains (bool): Whether to crawl subdomains
             whitelist_regexp (str, optional): Regex pattern for URL whitelist
             blacklist_regexp (str, optional): Regex pattern for URL blacklist
+            actions (Action or List[Action], optional): Actions to perform during crawling
         
         Returns:
             CrawlResponse: Response containing the job ID
@@ -75,6 +78,11 @@ class WebCrawlerAPI:
             payload["whitelist_regexp"] = whitelist_regexp
         if blacklist_regexp:
             payload["blacklist_regexp"] = blacklist_regexp
+        if actions:
+            # Convert single action to list if needed
+            action_list = [actions] if not isinstance(actions, list) else actions
+            # Convert dataclass objects to dictionaries
+            payload["actions"] = [vars(action) for action in action_list]
 
         response = self.session.post(
             urljoin(self.base_url, f"/{self.version}/crawl"),
@@ -131,6 +139,7 @@ class WebCrawlerAPI:
         allow_subdomains: bool = False,
         whitelist_regexp: Optional[str] = None,
         blacklist_regexp: Optional[str] = None,
+        actions: Optional[Union[Action, List[Action]]] = None,
         max_polls: int = 100
     ) -> Job:
         """
@@ -148,6 +157,7 @@ class WebCrawlerAPI:
             allow_subdomains (bool): Whether to crawl subdomains
             whitelist_regexp (str, optional): Regex pattern for URL whitelist
             blacklist_regexp (str, optional): Regex pattern for URL blacklist
+            actions (Action or List[Action], optional): Actions to perform during crawling
             max_polls (int): Maximum number of status checks before returning (default: 100)
         
         Returns:
@@ -164,7 +174,8 @@ class WebCrawlerAPI:
             webhook_url=webhook_url,
             allow_subdomains=allow_subdomains,
             whitelist_regexp=whitelist_regexp,
-            blacklist_regexp=blacklist_regexp
+            blacklist_regexp=blacklist_regexp,
+            actions=actions
         )
         
         job_id = response.id
