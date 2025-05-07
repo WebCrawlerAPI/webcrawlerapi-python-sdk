@@ -15,6 +15,30 @@ class ScrapeResponse:
     id: str
 
 
+@dataclass
+class Action:
+    """Base class for actions that can be performed during crawling."""
+    type: str
+    
+    
+@dataclass
+class UploadS3Action(Action):
+    """Action to upload crawled content to S3."""
+    path: str
+    access_key_id: str
+    secret_access_key: str
+    bucket: str
+    endpoint: Optional[str] = None
+    
+    def __init__(self, path: str, access_key_id: str, secret_access_key: str, bucket: str, endpoint: Optional[str] = None):
+        super().__init__(type="upload_s3")
+        self.path = path
+        self.access_key_id = access_key_id
+        self.secret_access_key = secret_access_key
+        self.bucket = bucket
+        self.endpoint = endpoint
+
+
 class JobItem:
     """Represents a single crawled page item in a job."""
     
