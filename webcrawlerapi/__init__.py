@@ -14,27 +14,22 @@ Basic usage:
     >>> # Or asynchronous crawling
     >>> response = crawler.crawl_async(url="https://example.com")
     >>> job = crawler.get_job(response.id)
-    >>> # Single page scraping (returns structured data directly)
-    >>> structured_data = crawler.scrape(
-    ...     crawler_id="webcrawler/url-to-md",
-    ...     input_data={"url": "https://example.com"}
-    ... )
-    >>> print(structured_data)  # Direct access to structured data
-    >>> # Or asynchronous scraping
-    >>> response = crawler.scrape_async(
-    ...     crawler_id="webcrawler/url-to-md",
-    ...     input_data={"url": "https://example.com"}
-    ... )
-    >>> result = crawler.get_scrape(response.id)  # Get full scrape result
-    >>> print(result.structured_data)  # Access structured data from result
+    >>> # Single page scraping (synchronous)
+    >>> result = crawler.scrape(url="https://example.com", output_format="markdown")
+    >>> if result.success:
+    ...     print(result.markdown)  # Access the scraped content
+    ... else:
+    ...     print(f"Error: {result.error_message}")
 """
 
 from .models import (
     CrawlResponse,
-    ScrapeResponse,
+    ScrapeResponseV2,
+    ScrapeResponseError,
     Job,
     JobItem,
-    ScrapeResult,
+    Action,
+    UploadS3Action,
 )
 from .client import WebCrawlerAPI
 
@@ -44,6 +39,8 @@ __all__ = [
     "Job",
     "JobItem",
     "CrawlResponse",
-    "ScrapeResponse",
-    "ScrapeResult",
+    "ScrapeResponseV2",
+    "ScrapeResponseError",
+    "Action",
+    "UploadS3Action",
 ] 

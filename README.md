@@ -114,13 +114,13 @@ Retrieves the current status and details of a specific job.
 Cancels a running job. Any items that are not in progress or already completed will be marked as canceled and will not be charged.
 
 ### scrape()
-Starts a new scraping job and waits for its completion. Returns the structured data directly when the scraping is done. This method will continuously poll the status until:
-- The scraping is completed (status: "done")
-- The scraping fails (status: "error")
-- The maximum number of polls is reached (default: 100)
+Scrapes a single URL and returns the markdown, cleaned or raw content, page status code and page title.
 
-### get_scrape()
-Retrieves the current status, metadata and results of a specific scraping job. Returns a `ScrapeResult` object containing both status information and structured data.
+#### Scrape Params
+Read more in [API Docs](https://webcrawlerapi.com/docs/api/scrape)
+
+- `url` (required): The URL to scrape.
+- `output_format` (required): The format of the output. Can be "markdown", "cleaned" or "raw"
 
 ## Parameters
 
@@ -134,11 +134,6 @@ Retrieves the current status, metadata and results of a specific scraping job. R
 - `blacklist_regexp` (optional): A regular expression to blacklist URLs. URLs that match the pattern will be skipped.
 - `max_polls` (optional, crawl only): Maximum number of status checks before returning (default: 100)
 
-### Scrape Methods (scrape and scrape_async)
-- `crawler_id` (required): The ID of the custom scraper.
-- `input_data` (required): The input data for the scraper.
-- `webhook_url` (optional): The URL where the server will send a POST request once the task is completed.
-- `max_polls` (optional, scrape only): Maximum number of status checks before returning (default: 100)
 
 ### Responses
 

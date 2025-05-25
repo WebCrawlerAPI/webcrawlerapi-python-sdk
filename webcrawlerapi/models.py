@@ -10,9 +10,22 @@ class CrawlResponse:
 
 
 @dataclass
-class ScrapeResponse:
-    """Response from an asynchronous scrape request."""
-    id: str
+class ScrapeResponseV2:
+    """Response from a synchronous scrape request."""
+    success: bool
+    markdown: Optional[str] = None
+    cleaned_content: Optional[str] = None
+    raw_content: Optional[str] = None
+    page_status_code: int = 0
+    page_title: Optional[str] = None
+
+
+@dataclass
+class ScrapeResponseError:
+    """Error response from a scrape request."""
+    success: bool
+    error_code: str
+    error_message: str
 
 
 @dataclass
@@ -159,29 +172,4 @@ class Job:
         return self.status in self.TERMINAL_STATUSES
 
 
-class ScrapeResult:
-    """Represents a scraping result."""
-    
-    TERMINAL_STATUSES = {"done", "error"}
-    
-    def __init__(self, data: Dict[str, Any]):
-        self.id: str = data.get("id", "")
-        self.status: str = data.get("status", "")
-        self.crawler_id: str = data.get("crawler_id", "")
-        self.page_status_code: Optional[int] = data.get("page_status_code")
-        self.created_at: Optional[datetime] = None
-        if data.get("created_at"):
-            self.created_at = datetime.fromisoformat(data["created_at"].replace(' ', 'T'))
-        self.cost: float = data.get("cost", 0.0)
-        self.structured_data: Dict[str, Any] = data.get("structured_data", {})
-        self.input_data: Dict[str, Any] = data.get("input_data", {})
-        
-        # Optional fields
-        self.finished_at: Optional[datetime] = None
-        if data.get("finished_at"):
-            self.finished_at = datetime.fromisoformat(data["finished_at"].replace(' ', 'T'))
-
-    @property
-    def is_terminal(self) -> bool:
-        """Check if the scrape is in a terminal state (done or error)."""
-        return self.status in self.TERMINAL_STATUSES 
+ 
