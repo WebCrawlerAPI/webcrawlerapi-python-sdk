@@ -24,7 +24,8 @@ Basic usage:
 
 from .models import (
     CrawlResponse,
-    ScrapeResponseV2,
+    ScrapeId,
+    ScrapeResponse,
     ScrapeResponseError,
     Job,
     JobItem,
@@ -39,7 +40,8 @@ __all__ = [
     "Job",
     "JobItem",
     "CrawlResponse",
-    "ScrapeResponseV2",
+    "ScrapeId",
+    "ScrapeResponse",
     "ScrapeResponseError",
     "Action",
     "UploadS3Action",

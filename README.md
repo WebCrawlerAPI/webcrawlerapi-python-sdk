@@ -81,19 +81,15 @@ print(f"Cancellation response: {cancel_response['message']}")
 
 ### Scraping
 
-Find the list of available scrapers [here](https://webcrawlerapi.com/scrapers).
-
 ```python
 # Returns structured data directly
-structured_data = crawler.scrape(
-    crawler_id="webcrawler/url-to-md",  # ID of the scraper
-    input_data={
-        "url": "https://example.com"  # Scraper-specific input parameters. Check scraper description
-    },
-    webhook_url="https://yourserver.com/webhook",  # Optional webhook
-    max_polls=20  # Optional: maximum number of status checks
+response = crawler.scrape(
+    "url": "https://webcrawlerapi.com"
 )
-print(structured_data)  # Direct access to scraped data
+if response.success:
+    print(response.markdown)
+else:
+    print(f"Code: {response.error_code} Error: {response.error_message}")
 ```
 
 ## API Methods

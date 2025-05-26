@@ -10,9 +10,16 @@ class CrawlResponse:
 
 
 @dataclass
-class ScrapeResponseV2:
-    """Response from a synchronous scrape request."""
+class ScrapeId:
+    """Response from an asynchronous scrape request."""
+    id: str
+
+
+@dataclass
+class ScrapeResponse:
+    """Response from a scrape request."""
     success: bool
+    status: Optional[str] = None
     markdown: Optional[str] = None
     cleaned_content: Optional[str] = None
     raw_content: Optional[str] = None
@@ -26,6 +33,7 @@ class ScrapeResponseError:
     success: bool
     error_code: str
     error_message: str
+    status: Optional[str] = None
 
 
 @dataclass
@@ -71,9 +79,9 @@ class JobItem:
         self.title: str = data["title"]
         self.created_at: datetime = datetime.fromisoformat(data["created_at"].replace('Z', '+00:00'))
         self.updated_at: datetime = datetime.fromisoformat(data["updated_at"].replace('Z', '+00:00'))
-        self.cost: int = data["cost"]
-        self.referred_url: str = data["referred_url"]
-        self.last_error: str = data["last_error"]
+        self.cost: int = data.get("cost", 0)
+        self.referred_url: Optional[str] = data.get("referred_url")
+        self.last_error: Optional[str] = data.get("last_error")
         self.error_code: Optional[str] = data.get("error_code")
         
         # Optional content URLs based on scrape_type
@@ -146,13 +154,13 @@ class Job:
         self.url: str = data["url"]
         self.status: str = data["status"]
         self.scrape_type: str = data["scrape_type"]
-        self.whitelist_regexp: str = data["whitelist_regexp"]
-        self.blacklist_regexp: str = data["blacklist_regexp"]
+        self.whitelist_regexp: Optional[str] = data.get("whitelist_regexp")
+        self.blacklist_regexp: Optional[str] = data.get("blacklist_regexp")
         self.allow_subdomains: bool = data["allow_subdomains"]
         self.items_limit: int = data["items_limit"]
         self.created_at: datetime = datetime.fromisoformat(data["created_at"].replace('Z', '+00:00'))
         self.updated_at: datetime = datetime.fromisoformat(data["updated_at"].replace('Z', '+00:00'))
-        self.webhook_url: str = data["webhook_url"]
+        self.webhook_url: Optional[str] = data.get("webhook_url")
         self.recommended_pull_delay_ms: int = data.get("recommended_pull_delay_ms", 0)
         
         # Optional fields

@@ -5,7 +5,8 @@ import time
 
 from .models import (
     CrawlResponse,
-    ScrapeResponseV2,
+    ScrapeId,
+    ScrapeResponse,
     ScrapeResponseError,
     Job,
     Action,
@@ -17,7 +18,7 @@ class WebCrawlerAPI:
     
     DEFAULT_POLL_DELAY_SECONDS = 5
     
-    def __init__(self, api_key: str, base_url: str = "https://api.webcrawlerapi.com", version: str = "v2"):
+    def __init__(self, api_key: str, base_url: str = "https://api.webcrawlerapi.com", version: str = "v1"):
         """
         Initialize the WebCrawler API client.
         
@@ -201,26 +202,26 @@ class WebCrawlerAPI:
         # Return the last known state if max_polls is reached
         return job
 
-    def scrape(
+    def scrape_async(
         self,
         url: str,
         output_format: str = "markdown",
         webhook_url: Optional[str] = None,
         clean_selectors: Optional[str] = None,
         actions: Optional[Union[Action, List[Action]]] = None
-    ) -> Union[ScrapeResponseV2, ScrapeResponseError]:
+    ) -> ScrapeId:
         """
-        Scrape a single URL synchronously.
+        Start a new scraping job asynchronously.
         
         Args:
             url (str): The URL to scrape
             output_format (str): Output format (markdown, cleaned, html)
             webhook_url (str, optional): URL to receive a POST request when scraping is complete
             clean_selectors (str, optional): CSS selectors to clean from the content
-            actions (Action or List[Action], optional): Actions to perform during scraping
+            actions (Action or List[Action], optional): Actions to perform after scraping (for example S3 upload)
             
         Returns:
-            Union[ScrapeResponseV2, ScrapeResponseError]: Response containing the scraped content or error
+            ScrapeId: Response containing the scrape job ID
             
         Raises:
             requests.exceptions.RequestException: If the API request fails
@@ -241,25 +242,127 @@ class WebCrawlerAPI:
             payload["actions"] = [vars(action) for action in action_list]
 
         response = self.session.post(
-            urljoin(self.base_url, f"/{self.version}/scrape"),
+            urljoin(self.base_url, f"/{self.version}/scrape?async=true"),
             json=payload
         )
         
+        if not response.ok:
+            try:
+                error_data = response.json()
+                raise requests.exceptions.HTTPError(
+                    f"{response.status_code} {response.reason}: {error_data.get('error', 'Unknown error')}"
+                )
+            except ValueError:
+                # If response is not JSON, raise with status and text
+                raise requests.exceptions.HTTPError(
+                    f"{response.status_code} {response.reason}: {response.text}"
+                )
+        
+        response.raise_for_status()
+        return ScrapeId(id=response.json()["id"])
+
+    def get_scrape(self, scrape_id: str) -> Union[ScrapeResponse, ScrapeResponseError]:
+        """
+        Get the status and result of a specific scrape job.
+        
+        Args:
+            scrape_id (str): The unique identifier of the scrape job
+            
+        Returns:
+            Union[ScrapeResponse, ScrapeResponseError]: The scrape result or error
+            
+        Raises:
+            requests.exceptions.RequestException: If the API request fails
+        """
+        response = self.session.get(
+            urljoin(self.base_url, f"/{self.version}/scrape/{scrape_id}")
+        )
+        
+        response.raise_for_status()
         response_data = response.json()
         
-        # Check if the response indicates success or error
-        if response_data.get("success", False):
-            return ScrapeResponseV2(
-                success=response_data["success"],
+        status = response_data.get("status")
+        
+        if status == "done":
+            return ScrapeResponse(
+                success=response_data.get("success", True),
+                status=status,
                 markdown=response_data.get("markdown"),
                 cleaned_content=response_data.get("cleaned_content"),
                 raw_content=response_data.get("raw_content"),
                 page_status_code=response_data.get("page_status_code", 0),
                 page_title=response_data.get("page_title")
             )
-        else:
+        elif status == "error":
             return ScrapeResponseError(
-                success=response_data.get("success", False),
+                success=False,
                 error_code=response_data.get("error_code", "unknown"),
-                error_message=response_data.get("error_message", "Unknown error")
-            ) 
+                error_message=response_data.get("error_message", "Scraping failed"),
+                status=status
+            )
+        else:  # in_progress or any other status
+            return ScrapeResponse(
+                success=False,
+                status=status
+            )
+
+    def scrape(
+        self,
+        url: str,
+        output_format: str = "markdown",
+        webhook_url: Optional[str] = None,
+        clean_selectors: Optional[str] = None,
+        actions: Optional[Union[Action, List[Action]]] = None,
+        max_polls: int = 100
+    ) -> Union[ScrapeResponse, ScrapeResponseError]:
+        """
+        Scrape a single URL and wait for completion.
+        
+        This method will start a scraping job and continuously poll its status
+        until it reaches a terminal state (done or error) or until
+        the maximum number of polls is reached.
+        
+        Args:
+            url (str): The URL to scrape
+            output_format (str): Output format (markdown, cleaned, html)
+            webhook_url (str, optional): URL to receive a POST request when scraping is complete
+            clean_selectors (str, optional): CSS selectors to clean from the content
+            actions (Action or List[Action], optional): Actions to perform during scraping
+            max_polls (int): Maximum number of status checks before returning (default: 100)
+            
+        Returns:
+            Union[ScrapeResponse, ScrapeResponseError]: The final scrape result
+            
+        Raises:
+            requests.exceptions.RequestException: If any API request fails
+        """
+        # Start the scraping job
+        response = self.scrape_async(
+            url=url,
+            output_format=output_format,
+            webhook_url=webhook_url,
+            clean_selectors=clean_selectors,
+            actions=actions
+        )
+        
+        scrape_id = response.id
+        polls = 0
+        
+        while polls < max_polls:
+            result = self.get_scrape(scrape_id)
+            
+            # Return immediately if scrape is done
+            if isinstance(result, ScrapeResponse) and result.status == "done":
+                return result
+            
+            # Return immediately if there's an error
+            if isinstance(result, ScrapeResponseError):
+                return result
+            
+            # Continue polling if status is in_progress or any other non-terminal status
+            # Wait before next poll
+            time.sleep(self.DEFAULT_POLL_DELAY_SECONDS)
+            polls += 1
+        
+        # Return the last known state if max_polls is reached
+        return result 
