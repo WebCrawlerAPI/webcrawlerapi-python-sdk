@@ -25,6 +25,7 @@ class ScrapeResponse:
     raw_content: Optional[str] = None
     page_status_code: int = 0
     page_title: Optional[str] = None
+    structured_data: Optional[Dict[str, Any]] = None
 
 
 @dataclass

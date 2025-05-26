@@ -25,7 +25,7 @@ class WebCrawlerAPI:
         Args:
             api_key (str): Your API key for authentication
             base_url (str): The base URL of the API (optional)
-            version (str): API version to use (optional, defaults to 'v2')
+            version (str): API version to use (optional, defaults to 'v1')
         """
         self.api_key = api_key
         self.base_url = base_url.rstrip('/')
@@ -208,6 +208,7 @@ class WebCrawlerAPI:
         output_format: str = "markdown",
         webhook_url: Optional[str] = None,
         clean_selectors: Optional[str] = None,
+        prompt: Optional[str] = None,
         actions: Optional[Union[Action, List[Action]]] = None
     ) -> ScrapeId:
         """
@@ -218,6 +219,7 @@ class WebCrawlerAPI:
             output_format (str): Output format (markdown, cleaned, html)
             webhook_url (str, optional): URL to receive a POST request when scraping is complete
             clean_selectors (str, optional): CSS selectors to clean from the content
+            prompt (str, optional): Prompt to guide the AI response
             actions (Action or List[Action], optional): Actions to perform after scraping (for example S3 upload)
             
         Returns:
@@ -235,6 +237,8 @@ class WebCrawlerAPI:
             payload["webhook_url"] = webhook_url
         if clean_selectors:
             payload["clean_selectors"] = clean_selectors
+        if prompt:
+            payload["prompt"] = prompt
         if actions:
             # Convert single action to list if needed
             action_list = [actions] if not isinstance(actions, list) else actions
@@ -291,7 +295,8 @@ class WebCrawlerAPI:
                 cleaned_content=response_data.get("cleaned_content"),
                 raw_content=response_data.get("raw_content"),
                 page_status_code=response_data.get("page_status_code", 0),
-                page_title=response_data.get("page_title")
+                page_title=response_data.get("page_title"),
+                structured_data=response_data.get("structured_data")
             )
         elif status == "error":
             return ScrapeResponseError(
@@ -312,6 +317,7 @@ class WebCrawlerAPI:
         output_format: str = "markdown",
         webhook_url: Optional[str] = None,
         clean_selectors: Optional[str] = None,
+        prompt: Optional[str] = None,
         actions: Optional[Union[Action, List[Action]]] = None,
         max_polls: int = 100
     ) -> Union[ScrapeResponse, ScrapeResponseError]:
@@ -327,6 +333,7 @@ class WebCrawlerAPI:
             output_format (str): Output format (markdown, cleaned, html)
             webhook_url (str, optional): URL to receive a POST request when scraping is complete
             clean_selectors (str, optional): CSS selectors to clean from the content
+            prompt (str, optional): Prompt to guide the AI response
             actions (Action or List[Action], optional): Actions to perform during scraping
             max_polls (int): Maximum number of status checks before returning (default: 100)
             
@@ -342,6 +349,7 @@ class WebCrawlerAPI:
             output_format=output_format,
             webhook_url=webhook_url,
             clean_selectors=clean_selectors,
+            prompt=prompt,
             actions=actions
         )
         
