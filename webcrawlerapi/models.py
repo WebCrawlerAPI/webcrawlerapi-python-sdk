@@ -1,6 +1,34 @@
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 from dataclasses import dataclass
+import re
+
+
+def parse_datetime(datetime_str: str) -> datetime:
+    """
+    Parse datetime string from API response, handling various microsecond formats.
+    
+    Args:
+        datetime_str (str): Datetime string from API
+        
+    Returns:
+        datetime: Parsed datetime object
+    """
+    # Replace 'Z' with '+00:00' for timezone
+    datetime_str = datetime_str.replace('Z', '+00:00')
+    
+    # Handle microseconds - pad to 6 digits or remove if present
+    # Pattern matches: YYYY-MM-DDTHH:MM:SS.microseconds followed by timezone or end
+    pattern = r'(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\.(\d+)(.*)'
+    match = re.match(pattern, datetime_str)
+    
+    if match:
+        base_time, microseconds, timezone_part = match.groups()
+        # Pad microseconds to 6 digits or truncate if longer
+        microseconds = microseconds.ljust(6, '0')[:6]
+        datetime_str = f"{base_time}.{microseconds}{timezone_part}"
+    
+    return datetime.fromisoformat(datetime_str)
 
 
 @dataclass
@@ -78,8 +106,8 @@ class JobItem:
         self.page_status_code: int = data["page_status_code"]
         self.status: str = data["status"]
         self.title: str = data["title"]
-        self.created_at: datetime = datetime.fromisoformat(data["created_at"].replace('Z', '+00:00'))
-        self.updated_at: datetime = datetime.fromisoformat(data["updated_at"].replace('Z', '+00:00'))
+        self.created_at: datetime = parse_datetime(data["created_at"])
+        self.updated_at: datetime = parse_datetime(data["updated_at"])
         self.cost: int = data.get("cost", 0)
         self.referred_url: Optional[str] = data.get("referred_url")
         self.last_error: Optional[str] = data.get("last_error")
@@ -157,17 +185,17 @@ class Job:
         self.scrape_type: str = data["scrape_type"]
         self.whitelist_regexp: Optional[str] = data.get("whitelist_regexp")
         self.blacklist_regexp: Optional[str] = data.get("blacklist_regexp")
-        self.allow_subdomains: bool = data["allow_subdomains"]
+        self.allow_subdomains: bool = data.get("allow_subdomains", False)
         self.items_limit: int = data["items_limit"]
-        self.created_at: datetime = datetime.fromisoformat(data["created_at"].replace('Z', '+00:00'))
-        self.updated_at: datetime = datetime.fromisoformat(data["updated_at"].replace('Z', '+00:00'))
+        self.created_at: datetime = parse_datetime(data["created_at"])
+        self.updated_at: datetime = parse_datetime(data["updated_at"])
         self.webhook_url: Optional[str] = data.get("webhook_url")
         self.recommended_pull_delay_ms: int = data.get("recommended_pull_delay_ms", 0)
         
         # Optional fields
         self.finished_at: Optional[datetime] = None
         if data.get("finished_at"):
-            self.finished_at = datetime.fromisoformat(data["finished_at"].replace('Z', '+00:00'))
+            self.finished_at = parse_datetime(data["finished_at"])
         
         self.webhook_status: Optional[str] = data.get("webhook_status")
         self.webhook_error: Optional[str] = data.get("webhook_error")
