@@ -12,13 +12,15 @@ from .models import (
     Action,
 )
 
+CRAWLER_VERSION = "v1"
+SCRAPER_VERSION = "v2"
 
 class WebCrawlerAPI:
     """Python SDK for WebCrawler API."""
     
     DEFAULT_POLL_DELAY_SECONDS = 5
     
-    def __init__(self, api_key: str, base_url: str = "https://api.webcrawlerapi.com", version: str = "v1"):
+    def __init__(self, api_key: str, base_url: str = "https://api.webcrawlerapi.com"):
         """
         Initialize the WebCrawler API client.
         
@@ -29,7 +31,6 @@ class WebCrawlerAPI:
         """
         self.api_key = api_key
         self.base_url = base_url.rstrip('/')
-        self.version = version
         self.session = requests.Session()
         self.session.headers.update({
             'Authorization': f'Bearer {api_key}',
@@ -86,7 +87,7 @@ class WebCrawlerAPI:
             payload["actions"] = [vars(action) for action in action_list]
 
         response = self.session.post(
-            urljoin(self.base_url, f"/{self.version}/crawl"),
+            urljoin(self.base_url, f"/{CRAWLER_VERSION}/crawl"),
             json=payload
         )
         response.raise_for_status()
@@ -106,7 +107,7 @@ class WebCrawlerAPI:
             requests.exceptions.RequestException: If the API request fails
         """
         response = self.session.get(
-            urljoin(self.base_url, f"/{self.version}/job/{job_id}")
+            urljoin(self.base_url, f"/{CRAWLER_VERSION}/job/{job_id}")
         )
         response.raise_for_status()
         return Job(response.json())
@@ -126,7 +127,7 @@ class WebCrawlerAPI:
             requests.exceptions.RequestException: If the API request fails
         """
         response = self.session.put(
-            urljoin(self.base_url, f"/{self.version}/job/{job_id}/cancel")
+            urljoin(self.base_url, f"/{CRAWLER_VERSION}/job/{job_id}/cancel")
         )
         response.raise_for_status()
         return response.json()
@@ -246,7 +247,7 @@ class WebCrawlerAPI:
             payload["actions"] = [vars(action) for action in action_list]
 
         response = self.session.post(
-            urljoin(self.base_url, f"/{self.version}/scrape?async=true"),
+            urljoin(self.base_url, f"/{SCRAPER_VERSION}/scrape?async=true"),
             json=payload
         )
         
@@ -279,7 +280,7 @@ class WebCrawlerAPI:
             requests.exceptions.RequestException: If the API request fails
         """
         response = self.session.get(
-            urljoin(self.base_url, f"/{self.version}/scrape/{scrape_id}")
+            urljoin(self.base_url, f"/{SCRAPER_VERSION}/scrape/{scrape_id}")
         )
         
         response.raise_for_status()
