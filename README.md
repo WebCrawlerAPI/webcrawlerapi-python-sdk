@@ -80,11 +80,11 @@ print(f"Cancellation response: {cancel_response['message']}")
 ```
 
 ### Scraping
-
+Check a working code example of [scraping](https://github.com/WebCrawlerAPI/webcrawlerapi-examples/tree/master/python/scraping) and [scraping with a prompt](https://github.com/WebCrawlerAPI/webcrawlerapi-examples/tree/master/python/scraping_prompt)
 ```python
 # Returns structured data directly
 response = crawler.scrape(
-    "url": "https://webcrawlerapi.com"
+    url="https://webcrawlerapi.com"
 )
 if response.success:
     print(response.markdown)
