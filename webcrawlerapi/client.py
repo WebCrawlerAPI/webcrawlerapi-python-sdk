@@ -46,7 +46,8 @@ class WebCrawlerAPI:
         allow_subdomains: bool = False,
         whitelist_regexp: Optional[str] = None,
         blacklist_regexp: Optional[str] = None,
-        actions: Optional[Union[Action, List[Action]]] = None
+        actions: Optional[Union[Action, List[Action]]] = None,
+        respect_robots_txt: bool = False
     ) -> CrawlResponse:
         """
         Start a new crawling job asynchronously.
@@ -60,6 +61,7 @@ class WebCrawlerAPI:
             whitelist_regexp (str, optional): Regex pattern for URL whitelist
             blacklist_regexp (str, optional): Regex pattern for URL blacklist
             actions (Action or List[Action], optional): Actions to perform during crawling
+            respect_robots_txt (bool): Whether to respect robots.txt file (default: False)
         
         Returns:
             CrawlResponse: Response containing the job ID
@@ -71,7 +73,8 @@ class WebCrawlerAPI:
             "url": url,
             "scrape_type": scrape_type,
             "items_limit": items_limit,
-            "allow_subdomains": allow_subdomains
+            "allow_subdomains": allow_subdomains,
+            "respect_robots_txt": respect_robots_txt
         }
 
         if webhook_url:
@@ -142,6 +145,7 @@ class WebCrawlerAPI:
         whitelist_regexp: Optional[str] = None,
         blacklist_regexp: Optional[str] = None,
         actions: Optional[Union[Action, List[Action]]] = None,
+        respect_robots_txt: bool = False,
         max_polls: int = 100
     ) -> Job:
         """
@@ -160,6 +164,7 @@ class WebCrawlerAPI:
             whitelist_regexp (str, optional): Regex pattern for URL whitelist
             blacklist_regexp (str, optional): Regex pattern for URL blacklist
             actions (Action or List[Action], optional): Actions to perform during crawling
+            respect_robots_txt (bool): Whether to respect robots.txt file (default: False)
             max_polls (int): Maximum number of status checks before returning (default: 100)
         
         Returns:
@@ -177,7 +182,8 @@ class WebCrawlerAPI:
             allow_subdomains=allow_subdomains,
             whitelist_regexp=whitelist_regexp,
             blacklist_regexp=blacklist_regexp,
-            actions=actions
+            actions=actions,
+            respect_robots_txt=respect_robots_txt
         )
         
         job_id = response.id
@@ -210,7 +216,8 @@ class WebCrawlerAPI:
         webhook_url: Optional[str] = None,
         clean_selectors: Optional[str] = None,
         prompt: Optional[str] = None,
-        actions: Optional[Union[Action, List[Action]]] = None
+        actions: Optional[Union[Action, List[Action]]] = None,
+        respect_robots_txt: bool = False
     ) -> ScrapeId:
         """
         Start a new scraping job asynchronously.
@@ -222,6 +229,7 @@ class WebCrawlerAPI:
             clean_selectors (str, optional): CSS selectors to clean from the content
             prompt (str, optional): Prompt to guide the AI response
             actions (Action or List[Action], optional): Actions to perform after scraping (for example S3 upload)
+            respect_robots_txt (bool): Whether to respect robots.txt file (default: False)
             
         Returns:
             ScrapeId: Response containing the scrape job ID
@@ -231,7 +239,8 @@ class WebCrawlerAPI:
         """
         payload = {
             "url": url,
-            "output_format": output_format
+            "output_format": output_format,
+            "respect_robots_txt": respect_robots_txt
         }
         
         if webhook_url:
@@ -320,6 +329,7 @@ class WebCrawlerAPI:
         clean_selectors: Optional[str] = None,
         prompt: Optional[str] = None,
         actions: Optional[Union[Action, List[Action]]] = None,
+        respect_robots_txt: bool = False,
         max_polls: int = 100
     ) -> Union[ScrapeResponse, ScrapeResponseError]:
         """
@@ -336,6 +346,7 @@ class WebCrawlerAPI:
             clean_selectors (str, optional): CSS selectors to clean from the content
             prompt (str, optional): Prompt to guide the AI response
             actions (Action or List[Action], optional): Actions to perform during scraping
+            respect_robots_txt (bool): Whether to respect robots.txt file (default: False)
             max_polls (int): Maximum number of status checks before returning (default: 100)
             
         Returns:
@@ -351,7 +362,8 @@ class WebCrawlerAPI:
             webhook_url=webhook_url,
             clean_selectors=clean_selectors,
             prompt=prompt,
-            actions=actions
+            actions=actions,
+            respect_robots_txt=respect_robots_txt
         )
         
         scrape_id = response.id
