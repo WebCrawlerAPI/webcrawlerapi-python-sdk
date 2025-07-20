@@ -22,17 +22,17 @@ Basic usage:
     ...     print(f"Error: {result.error_message}")
 """
 
+from .client import WebCrawlerAPI
 from .models import (
+    Action,
     CrawlResponse,
+    Job,
+    JobItem,
     ScrapeId,
     ScrapeResponse,
     ScrapeResponseError,
-    Job,
-    JobItem,
-    Action,
     UploadS3Action,
 )
-from .client import WebCrawlerAPI
 
 __version__ = "1.0.0"
 __all__ = [
@@ -45,4 +45,4 @@ __all__ = [
     "ScrapeResponseError",
     "Action",
     "UploadS3Action",
-] 
+]
