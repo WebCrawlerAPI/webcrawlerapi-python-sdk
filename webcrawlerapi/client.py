@@ -1,5 +1,5 @@
 import time
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 from urllib.parse import urljoin
 
 import requests
@@ -133,7 +133,7 @@ class WebCrawlerAPI:
             urljoin(self.base_url, f"/{CRAWLER_VERSION}/job/{job_id}/cancel")
         )
         response.raise_for_status()
-        return response.json()
+        return cast(Dict[str, str], response.json())
 
     def crawl(
         self,
