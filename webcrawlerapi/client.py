@@ -49,6 +49,7 @@ class WebCrawlerAPI:
         blacklist_regexp: Optional[str] = None,
         actions: Optional[Union[Action, List[Action]]] = None,
         respect_robots_txt: bool = False,
+        main_content_only: bool = False,
     ) -> CrawlResponse:
         """
         Start a new crawling job asynchronously.
@@ -63,6 +64,7 @@ class WebCrawlerAPI:
             blacklist_regexp (str, optional): Regex pattern for URL blacklist
             actions (Action or List[Action], optional): Actions to perform during crawling
             respect_robots_txt (bool): Whether to respect robots.txt file (default: False)
+            main_content_only (bool): Whether to extract only main content (default: False)
 
         Returns:
             CrawlResponse: Response containing the job ID
@@ -76,6 +78,7 @@ class WebCrawlerAPI:
             "items_limit": items_limit,
             "allow_subdomains": allow_subdomains,
             "respect_robots_txt": respect_robots_txt,
+            "main_content_only": main_content_only,
         }
 
         if webhook_url:
@@ -146,6 +149,7 @@ class WebCrawlerAPI:
         blacklist_regexp: Optional[str] = None,
         actions: Optional[Union[Action, List[Action]]] = None,
         respect_robots_txt: bool = False,
+        main_content_only: bool = False,
         max_polls: int = 100,
     ) -> Job:
         """
@@ -165,6 +169,7 @@ class WebCrawlerAPI:
             blacklist_regexp (str, optional): Regex pattern for URL blacklist
             actions (Action or List[Action], optional): Actions to perform during crawling
             respect_robots_txt (bool): Whether to respect robots.txt file (default: False)
+            main_content_only (bool): Whether to extract only main content (default: False)
             max_polls (int): Maximum number of status checks before returning (default: 100)
 
         Returns:
@@ -184,6 +189,7 @@ class WebCrawlerAPI:
             blacklist_regexp=blacklist_regexp,
             actions=actions,
             respect_robots_txt=respect_robots_txt,
+            main_content_only=main_content_only,
         )
 
         job_id = response.id
@@ -218,6 +224,7 @@ class WebCrawlerAPI:
         prompt: Optional[str] = None,
         actions: Optional[Union[Action, List[Action]]] = None,
         respect_robots_txt: bool = False,
+        main_content_only: bool = False,
     ) -> ScrapeId:
         """
         Start a new scraping job asynchronously.
@@ -230,6 +237,7 @@ class WebCrawlerAPI:
             prompt (str, optional): Prompt to guide the AI response
             actions (Action or List[Action], optional): Actions to perform after scraping (for example S3 upload)
             respect_robots_txt (bool): Whether to respect robots.txt file (default: False)
+            main_content_only (bool): Whether to extract only main content (default: False)
 
         Returns:
             ScrapeId: Response containing the scrape job ID
@@ -241,6 +249,7 @@ class WebCrawlerAPI:
             "url": url,
             "output_format": output_format,
             "respect_robots_txt": respect_robots_txt,
+            "main_content_only": main_content_only,
         }
 
         if webhook_url:
@@ -327,6 +336,7 @@ class WebCrawlerAPI:
         prompt: Optional[str] = None,
         actions: Optional[Union[Action, List[Action]]] = None,
         respect_robots_txt: bool = False,
+        main_content_only: bool = False,
         max_polls: int = 100,
     ) -> Union[ScrapeResponse, ScrapeResponseError]:
         """
@@ -344,6 +354,7 @@ class WebCrawlerAPI:
             prompt (str, optional): Prompt to guide the AI response
             actions (Action or List[Action], optional): Actions to perform during scraping
             respect_robots_txt (bool): Whether to respect robots.txt file (default: False)
+            main_content_only (bool): Whether to extract only main content (default: False)
             max_polls (int): Maximum number of status checks before returning (default: 100)
 
         Returns:
@@ -361,6 +372,7 @@ class WebCrawlerAPI:
             prompt=prompt,
             actions=actions,
             respect_robots_txt=respect_robots_txt,
+            main_content_only=main_content_only,
         )
 
         scrape_id = response.id
