@@ -50,6 +50,7 @@ class WebCrawlerAPI:
         actions: Optional[Union[Action, List[Action]]] = None,
         respect_robots_txt: bool = False,
         main_content_only: bool = False,
+        max_depth: Optional[int] = None,
     ) -> CrawlResponse:
         """
         Start a new crawling job asynchronously.
@@ -65,6 +66,7 @@ class WebCrawlerAPI:
             actions (Action or List[Action], optional): Actions to perform during crawling
             respect_robots_txt (bool): Whether to respect robots.txt file (default: False)
             main_content_only (bool): Whether to extract only main content (default: False)
+            max_depth (int, optional): Maximum depth of crawl (0 for seed URL only, 1 for one level deep, etc.)
 
         Returns:
             CrawlResponse: Response containing the job ID
@@ -87,6 +89,8 @@ class WebCrawlerAPI:
             payload["whitelist_regexp"] = whitelist_regexp
         if blacklist_regexp:
             payload["blacklist_regexp"] = blacklist_regexp
+        if max_depth is not None:
+            payload["max_depth"] = max_depth
         if actions:
             # Convert single action to list if needed
             action_list = [actions] if not isinstance(actions, list) else actions
@@ -150,6 +154,7 @@ class WebCrawlerAPI:
         actions: Optional[Union[Action, List[Action]]] = None,
         respect_robots_txt: bool = False,
         main_content_only: bool = False,
+        max_depth: Optional[int] = None,
         max_polls: int = 100,
     ) -> Job:
         """
@@ -170,6 +175,7 @@ class WebCrawlerAPI:
             actions (Action or List[Action], optional): Actions to perform during crawling
             respect_robots_txt (bool): Whether to respect robots.txt file (default: False)
             main_content_only (bool): Whether to extract only main content (default: False)
+            max_depth (int, optional): Maximum depth of crawl (0 for seed URL only, 1 for one level deep, etc.)
             max_polls (int): Maximum number of status checks before returning (default: 100)
 
         Returns:
@@ -190,6 +196,7 @@ class WebCrawlerAPI:
             actions=actions,
             respect_robots_txt=respect_robots_txt,
             main_content_only=main_content_only,
+            max_depth=max_depth,
         )
 
         job_id = response.id

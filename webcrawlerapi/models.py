@@ -125,6 +125,7 @@ class JobItem:
         self.referred_url: Optional[str] = data.get("referred_url")
         self.last_error: Optional[str] = data.get("last_error")
         self.error_code: Optional[str] = data.get("error_code")
+        self.depth: Optional[int] = data.get("depth")
 
         # Optional content URLs based on scrape_type
         self.raw_content_url: Optional[str] = data.get("raw_content_url")
@@ -201,6 +202,7 @@ class Job:
         self.blacklist_regexp: Optional[str] = data.get("blacklist_regexp")
         self.allow_subdomains: bool = data.get("allow_subdomains", False)
         self.items_limit: int = data["items_limit"]
+        self.max_depth: Optional[int] = data.get("max_depth")
         self.created_at: datetime = parse_datetime(data["created_at"])
         self.updated_at: datetime = parse_datetime(data["updated_at"])
         self.webhook_url: Optional[str] = data.get("webhook_url")
