@@ -142,9 +142,11 @@ class WebCrawlerAPI:
         if not response.ok:
             try:
                 error_payload = response.json()
-                detail = error_payload.get("message") or error_payload.get(
-                    "error_message"
-                ) or error_payload.get("error")
+                detail = (
+                    error_payload.get("message")
+                    or error_payload.get("error_message")
+                    or error_payload.get("error")
+                )
             except ValueError:
                 detail = response.text
 
