@@ -103,6 +103,8 @@ Starts a new crawling job and waits for its completion. This method will continu
 ### crawl_async()
 Starts a new crawling job and returns immediately with a job ID. Use this when you want to handle polling and status checks yourself, or when using webhooks.
 
+Use `crawl_raw_markdown()` when you need the combined `/job/{id}/markdown` output after a crawl finishes.
+
 ### get_job()
 Retrieves the current status and details of a specific job.
 

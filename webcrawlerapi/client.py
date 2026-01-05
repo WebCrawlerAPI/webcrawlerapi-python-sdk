@@ -122,6 +122,40 @@ class WebCrawlerAPI:
         response.raise_for_status()
         return Job(response.json())
 
+    def get_job_markdown(self, job_id: str) -> str:
+        """
+        Get combined markdown content for a completed markdown job.
+
+        Args:
+            job_id (str): The unique identifier of the job
+
+        Returns:
+            str: Combined markdown content
+
+        Raises:
+            requests.exceptions.RequestException: If the API request fails
+        """
+        response = self.session.get(
+            urljoin(self.base_url, f"/{CRAWLER_VERSION}/job/{job_id}/markdown")
+        )
+
+        if not response.ok:
+            try:
+                error_payload = response.json()
+                detail = error_payload.get("message") or error_payload.get(
+                    "error_message"
+                ) or error_payload.get("error")
+            except ValueError:
+                detail = response.text
+
+            try:
+                response.raise_for_status()
+            except requests.exceptions.HTTPError as exc:
+                raise requests.exceptions.HTTPError(f"{exc}: {detail}") from exc
+
+        response.raise_for_status()
+        return response.text
+
     def cancel_job(self, job_id: str) -> Dict[str, str]:
         """
         Cancel a running job. All items that are not in progress and not done
@@ -221,6 +255,54 @@ class WebCrawlerAPI:
 
         # Return the last known state if max_polls is reached
         return job
+
+    def crawl_raw_markdown(
+        self,
+        url: str,
+        scrape_type: str = "markdown",
+        items_limit: int = 10,
+        webhook_url: Optional[str] = None,
+        allow_subdomains: bool = False,
+        whitelist_regexp: Optional[str] = None,
+        blacklist_regexp: Optional[str] = None,
+        actions: Optional[Union[Action, List[Action]]] = None,
+        respect_robots_txt: bool = False,
+        main_content_only: bool = False,
+        max_depth: Optional[int] = None,
+        max_polls: int = 100,
+    ) -> str:
+        """
+        Run a crawl job and return the combined markdown output when finished.
+
+        Raises:
+            requests.exceptions.RequestException: If any API request fails
+        """
+        job = self.crawl(
+            url=url,
+            scrape_type=scrape_type,
+            items_limit=items_limit,
+            webhook_url=webhook_url,
+            allow_subdomains=allow_subdomains,
+            whitelist_regexp=whitelist_regexp,
+            blacklist_regexp=blacklist_regexp,
+            actions=actions,
+            respect_robots_txt=respect_robots_txt,
+            main_content_only=main_content_only,
+            max_depth=max_depth,
+            max_polls=max_polls,
+        )
+
+        if job.scrape_type != "markdown":
+            raise requests.exceptions.HTTPError(
+                "crawl_raw_markdown requires scrape_type to be markdown"
+            )
+
+        if job.status != "done":
+            raise requests.exceptions.HTTPError(
+                f"Job finished with status {job.status}"
+            )
+
+        return self.get_job_markdown(job.id)
 
     def scrape_async(
         self,
