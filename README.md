@@ -26,9 +26,9 @@ job = crawler.crawl(
     scrape_type="markdown",
     items_limit=10,
     webhook_url="https://yourserver.com/webhook",
-    allow_subdomains=False,
     max_polls=100  # Optional: maximum number of status checks. Use higher for bigger websites
-)
+ )
+
 print(f"Job completed with status: {job.status}")
 
 # Access job items and their content
@@ -57,8 +57,7 @@ response = crawler.crawl_async(
     url="https://example.com",
     scrape_type="markdown",
     items_limit=10,
-    webhook_url="https://yourserver.com/webhook",
-    allow_subdomains=False
+    webhook_url="https://yourserver.com/webhook"
 )
 
 # Get the job ID from the response
@@ -127,7 +126,6 @@ Read more in [API Docs](https://webcrawlerapi.com/docs/api/scrape)
 - `scrape_type` (default: "html"): The type of scraping you want to perform. Can be "html", "cleaned", or "markdown".
 - `items_limit` (default: 10): Crawler will stop when it reaches this limit of pages for this job.
 - `webhook_url` (optional): The URL where the server will send a POST request once the task is completed.
-- `allow_subdomains` (default: False): If True, the crawler will also crawl subdomains.
 - `whitelist_regexp` (optional): A regular expression to whitelist URLs. Only URLs that match the pattern will be crawled.
 - `blacklist_regexp` (optional): A regular expression to blacklist URLs. URLs that match the pattern will be skipped.
 - `max_polls` (optional, crawl only): Maximum number of status checks before returning (default: 100)

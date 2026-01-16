@@ -200,7 +200,6 @@ class Job:
         self.scrape_type: str = data["scrape_type"]
         self.whitelist_regexp: Optional[str] = data.get("whitelist_regexp")
         self.blacklist_regexp: Optional[str] = data.get("blacklist_regexp")
-        self.allow_subdomains: bool = data.get("allow_subdomains", False)
         self.items_limit: int = data["items_limit"]
         self.max_depth: Optional[int] = data.get("max_depth")
         self.created_at: datetime = parse_datetime(data["created_at"])

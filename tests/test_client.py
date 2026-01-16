@@ -35,7 +35,6 @@ class TestWebCrawlerAPI:
             "status": "done",
             "scrape_type": "markdown",
             "items_limit": 10,
-            "allow_subdomains": False,
             "created_at": "2023-01-01T12:00:00.000Z",
             "updated_at": "2023-01-01T12:30:00.000Z",
             "finished_at": "2023-01-01T12:30:00.000Z",
@@ -83,7 +82,6 @@ class TestWebCrawlerAPI:
             url="https://example.com",
             scrape_type="markdown",
             items_limit=5,
-            allow_subdomains=True,
             respect_robots_txt=True,
         )
 
@@ -98,7 +96,6 @@ class TestWebCrawlerAPI:
         assert payload["url"] == "https://example.com"
         assert payload["scrape_type"] == "markdown"
         assert payload["items_limit"] == 5
-        assert payload["allow_subdomains"] is True
         assert payload["respect_robots_txt"] is True
 
     @responses.activate
@@ -131,6 +128,26 @@ class TestWebCrawlerAPI:
         assert len(payload["actions"]) == 1
         assert payload["actions"][0]["type"] == "upload_s3"
         assert payload["actions"][0]["bucket"] == "my-bucket"
+
+    @responses.activate
+    def test_crawl_async_with_max_age(self, client):
+        """Test crawl_async includes max_age when provided."""
+        responses.add(
+            responses.POST,
+            "https://api.test.com/v1/crawl",
+            json={"id": "crawl-789"},
+            status=200,
+        )
+
+        result = client.crawl_async(url="https://example.com", max_age=3600)
+
+        assert result.id == "crawl-789"
+
+        request = responses.calls[0].request
+        import json
+
+        payload = json.loads(request.body)
+        assert payload["max_age"] == 3600
 
     @responses.activate
     def test_crawl_async_http_error(self, client):
@@ -224,7 +241,6 @@ class TestWebCrawlerAPI:
             "status": "in_progress",
             "scrape_type": "markdown",
             "items_limit": 10,
-            "allow_subdomains": False,
             "created_at": "2023-01-01T12:00:00.000Z",
             "updated_at": "2023-01-01T12:30:00.000Z",
             "recommended_pull_delay_ms": 1000,

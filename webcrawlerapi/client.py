@@ -44,13 +44,13 @@ class WebCrawlerAPI:
         scrape_type: str = "markdown",
         items_limit: int = 10,
         webhook_url: Optional[str] = None,
-        allow_subdomains: bool = False,
         whitelist_regexp: Optional[str] = None,
         blacklist_regexp: Optional[str] = None,
         actions: Optional[Union[Action, List[Action]]] = None,
         respect_robots_txt: bool = False,
         main_content_only: bool = False,
         max_depth: Optional[int] = None,
+        max_age: Optional[int] = None,
     ) -> CrawlResponse:
         """
         Start a new crawling job asynchronously.
@@ -60,13 +60,13 @@ class WebCrawlerAPI:
             scrape_type (str): Type of scraping (html, cleaned, markdown)
             items_limit (int): Maximum number of pages to crawl
             webhook_url (str, optional): URL for webhook notifications
-            allow_subdomains (bool): Whether to crawl subdomains
             whitelist_regexp (str, optional): Regex pattern for URL whitelist
             blacklist_regexp (str, optional): Regex pattern for URL blacklist
             actions (Action or List[Action], optional): Actions to perform during crawling
             respect_robots_txt (bool): Whether to respect robots.txt file (default: False)
             main_content_only (bool): Whether to extract only main content (default: False)
             max_depth (int, optional): Maximum depth of crawl (0 for seed URL only, 1 for one level deep, etc.)
+            max_age (int, optional): Maximum age in seconds for cached content. If specified, returns cached results if available and not older than max_age seconds. Use 0 to bypass cache.
 
         Returns:
             CrawlResponse: Response containing the job ID
@@ -78,7 +78,6 @@ class WebCrawlerAPI:
             "url": url,
             "scrape_type": scrape_type,
             "items_limit": items_limit,
-            "allow_subdomains": allow_subdomains,
             "respect_robots_txt": respect_robots_txt,
             "main_content_only": main_content_only,
         }
@@ -91,6 +90,8 @@ class WebCrawlerAPI:
             payload["blacklist_regexp"] = blacklist_regexp
         if max_depth is not None:
             payload["max_depth"] = max_depth
+        if max_age is not None:
+            payload["max_age"] = max_age
         if actions:
             # Convert single action to list if needed
             action_list = [actions] if not isinstance(actions, list) else actions
@@ -184,13 +185,13 @@ class WebCrawlerAPI:
         scrape_type: str = "markdown",
         items_limit: int = 10,
         webhook_url: Optional[str] = None,
-        allow_subdomains: bool = False,
         whitelist_regexp: Optional[str] = None,
         blacklist_regexp: Optional[str] = None,
         actions: Optional[Union[Action, List[Action]]] = None,
         respect_robots_txt: bool = False,
         main_content_only: bool = False,
         max_depth: Optional[int] = None,
+        max_age: Optional[int] = None,
         max_polls: int = 100,
     ) -> Job:
         """
@@ -205,13 +206,13 @@ class WebCrawlerAPI:
             scrape_type (str): Type of scraping (html, cleaned, markdown)
             items_limit (int): Maximum number of pages to crawl
             webhook_url (str, optional): URL for webhook notifications
-            allow_subdomains (bool): Whether to crawl subdomains
             whitelist_regexp (str, optional): Regex pattern for URL whitelist
             blacklist_regexp (str, optional): Regex pattern for URL blacklist
             actions (Action or List[Action], optional): Actions to perform during crawling
             respect_robots_txt (bool): Whether to respect robots.txt file (default: False)
             main_content_only (bool): Whether to extract only main content (default: False)
             max_depth (int, optional): Maximum depth of crawl (0 for seed URL only, 1 for one level deep, etc.)
+            max_age (int, optional): Maximum age in seconds for cached content. If specified, returns cached results if available and not older than max_age seconds. Use 0 to bypass cache.
             max_polls (int): Maximum number of status checks before returning (default: 100)
 
         Returns:
@@ -226,26 +227,23 @@ class WebCrawlerAPI:
             scrape_type=scrape_type,
             items_limit=items_limit,
             webhook_url=webhook_url,
-            allow_subdomains=allow_subdomains,
             whitelist_regexp=whitelist_regexp,
             blacklist_regexp=blacklist_regexp,
             actions=actions,
             respect_robots_txt=respect_robots_txt,
             main_content_only=main_content_only,
             max_depth=max_depth,
+            max_age=max_age,
         )
 
         job_id = response.id
         polls = 0
+        job = self.get_job(job_id)
 
         while polls < max_polls:
-            job = self.get_job(job_id)
-
-            # Return immediately if job is in a terminal state
             if job.is_terminal:
                 return job
 
-            # Calculate delay for next poll
             delay_seconds = (
                 job.recommended_pull_delay_ms / 1000
                 if job.recommended_pull_delay_ms
@@ -254,6 +252,7 @@ class WebCrawlerAPI:
 
             time.sleep(delay_seconds)
             polls += 1
+            job = self.get_job(job_id)
 
         # Return the last known state if max_polls is reached
         return job
@@ -264,13 +263,13 @@ class WebCrawlerAPI:
         scrape_type: str = "markdown",
         items_limit: int = 10,
         webhook_url: Optional[str] = None,
-        allow_subdomains: bool = False,
         whitelist_regexp: Optional[str] = None,
         blacklist_regexp: Optional[str] = None,
         actions: Optional[Union[Action, List[Action]]] = None,
         respect_robots_txt: bool = False,
         main_content_only: bool = False,
         max_depth: Optional[int] = None,
+        max_age: Optional[int] = None,
         max_polls: int = 100,
     ) -> str:
         """
@@ -284,13 +283,13 @@ class WebCrawlerAPI:
             scrape_type=scrape_type,
             items_limit=items_limit,
             webhook_url=webhook_url,
-            allow_subdomains=allow_subdomains,
             whitelist_regexp=whitelist_regexp,
             blacklist_regexp=blacklist_regexp,
             actions=actions,
             respect_robots_txt=respect_robots_txt,
             main_content_only=main_content_only,
             max_depth=max_depth,
+            max_age=max_age,
             max_polls=max_polls,
         )
 
@@ -316,6 +315,7 @@ class WebCrawlerAPI:
         actions: Optional[Union[Action, List[Action]]] = None,
         respect_robots_txt: bool = False,
         main_content_only: bool = False,
+        max_age: Optional[int] = None,
     ) -> ScrapeId:
         """
         Start a new scraping job asynchronously.
@@ -329,6 +329,7 @@ class WebCrawlerAPI:
             actions (Action or List[Action], optional): Actions to perform after scraping (for example S3 upload)
             respect_robots_txt (bool): Whether to respect robots.txt file (default: False)
             main_content_only (bool): Whether to extract only main content (default: False)
+            max_age (int, optional): Maximum age in seconds for cached content. If specified, returns cached results if available and not older than max_age seconds. Use 0 to bypass cache.
 
         Returns:
             ScrapeId: Response containing the scrape job ID
@@ -349,6 +350,8 @@ class WebCrawlerAPI:
             payload["clean_selectors"] = clean_selectors
         if prompt:
             payload["prompt"] = prompt
+        if max_age is not None:
+            payload["max_age"] = max_age
         if actions:
             # Convert single action to list if needed
             action_list = [actions] if not isinstance(actions, list) else actions
@@ -428,6 +431,7 @@ class WebCrawlerAPI:
         actions: Optional[Union[Action, List[Action]]] = None,
         respect_robots_txt: bool = False,
         main_content_only: bool = False,
+        max_age: Optional[int] = None,
         max_polls: int = 100,
     ) -> Union[ScrapeResponse, ScrapeResponseError]:
         """
@@ -446,6 +450,7 @@ class WebCrawlerAPI:
             actions (Action or List[Action], optional): Actions to perform during scraping
             respect_robots_txt (bool): Whether to respect robots.txt file (default: False)
             main_content_only (bool): Whether to extract only main content (default: False)
+            max_age (int, optional): Maximum age in seconds for cached content. If specified, returns cached results if available and not older than max_age seconds. Use 0 to bypass cache.
             max_polls (int): Maximum number of status checks before returning (default: 100)
 
         Returns:
@@ -464,26 +469,22 @@ class WebCrawlerAPI:
             actions=actions,
             respect_robots_txt=respect_robots_txt,
             main_content_only=main_content_only,
+            max_age=max_age,
         )
 
         scrape_id = response.id
         polls = 0
+        result: Union[ScrapeResponse, ScrapeResponseError] = self.get_scrape(scrape_id)
 
         while polls < max_polls:
-            result = self.get_scrape(scrape_id)
-
-            # Return immediately if scrape is done
             if isinstance(result, ScrapeResponse) and result.status == "done":
                 return result
 
-            # Return immediately if there's an error
             if isinstance(result, ScrapeResponseError):
                 return result
 
-            # Continue polling if status is in_progress or any other non-terminal status
-            # Wait before next poll
             time.sleep(self.DEFAULT_POLL_DELAY_SECONDS)
             polls += 1
+            result = self.get_scrape(scrape_id)
 
-        # Return the last known state if max_polls is reached
         return result

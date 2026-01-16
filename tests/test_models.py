@@ -171,7 +171,6 @@ class TestJobItem:
             "status": "done",
             "scrape_type": "markdown",
             "items_limit": 10,
-            "allow_subdomains": False,
             "created_at": "2023-01-01T12:00:00.000Z",
             "updated_at": "2023-01-01T12:30:00.000Z",
             "job_items": [],
@@ -316,7 +315,6 @@ class TestJob:
             "status": "done",
             "scrape_type": "markdown",
             "items_limit": 10,
-            "allow_subdomains": True,
             "created_at": "2023-01-01T12:00:00.000Z",
             "updated_at": "2023-01-01T12:30:00.000Z",
             "finished_at": "2023-01-01T12:30:00.000Z",
@@ -361,7 +359,6 @@ class TestJob:
         assert job.status == "done"
         assert job.scrape_type == "markdown"
         assert job.items_limit == 10
-        assert job.allow_subdomains is True
         assert isinstance(job.created_at, datetime)
         assert isinstance(job.updated_at, datetime)
         assert isinstance(job.finished_at, datetime)
@@ -394,7 +391,6 @@ class TestJob:
         job = Job(minimal_data)
 
         assert job.id == "job-123"
-        assert job.allow_subdomains is False  # Default value
         assert job.finished_at is None
         assert job.webhook_url is None
         assert job.webhook_status is None
