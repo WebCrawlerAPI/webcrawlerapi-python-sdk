@@ -312,6 +312,7 @@ class WebCrawlerAPI:
         webhook_url: Optional[str] = None,
         clean_selectors: Optional[str] = None,
         prompt: Optional[str] = None,
+        response_schema: Optional[Dict[str, Any]] = None,
         actions: Optional[Union[Action, List[Action]]] = None,
         respect_robots_txt: bool = False,
         main_content_only: bool = False,
@@ -326,6 +327,7 @@ class WebCrawlerAPI:
             webhook_url (str, optional): URL to receive a POST request when scraping is complete
             clean_selectors (str, optional): CSS selectors to clean from the content
             prompt (str, optional): Prompt to guide the AI response
+            response_schema (dict, optional): JSON Schema for structured output format. Works with the prompt parameter.
             actions (Action or List[Action], optional): Actions to perform after scraping (for example S3 upload)
             respect_robots_txt (bool): Whether to respect robots.txt file (default: False)
             main_content_only (bool): Whether to extract only main content (default: False)
@@ -350,6 +352,8 @@ class WebCrawlerAPI:
             payload["clean_selectors"] = clean_selectors
         if prompt:
             payload["prompt"] = prompt
+        if response_schema is not None:
+            payload["response_schema"] = response_schema
         if max_age is not None:
             payload["max_age"] = max_age
         if actions:
@@ -410,6 +414,7 @@ class WebCrawlerAPI:
                 page_status_code=response_data.get("page_status_code", 0),
                 page_title=response_data.get("page_title"),
                 structured_data=response_data.get("structured_data"),
+                links=response_data.get("links"),
             )
         elif status == "error":
             return ScrapeResponseError(
@@ -428,6 +433,7 @@ class WebCrawlerAPI:
         webhook_url: Optional[str] = None,
         clean_selectors: Optional[str] = None,
         prompt: Optional[str] = None,
+        response_schema: Optional[Dict[str, Any]] = None,
         actions: Optional[Union[Action, List[Action]]] = None,
         respect_robots_txt: bool = False,
         main_content_only: bool = False,
@@ -447,6 +453,7 @@ class WebCrawlerAPI:
             webhook_url (str, optional): URL to receive a POST request when scraping is complete
             clean_selectors (str, optional): CSS selectors to clean from the content
             prompt (str, optional): Prompt to guide the AI response
+            response_schema (dict, optional): JSON Schema for structured output format. Works with the prompt parameter.
             actions (Action or List[Action], optional): Actions to perform during scraping
             respect_robots_txt (bool): Whether to respect robots.txt file (default: False)
             main_content_only (bool): Whether to extract only main content (default: False)
@@ -466,6 +473,7 @@ class WebCrawlerAPI:
             webhook_url=webhook_url,
             clean_selectors=clean_selectors,
             prompt=prompt,
+            response_schema=response_schema,
             actions=actions,
             respect_robots_txt=respect_robots_txt,
             main_content_only=main_content_only,

@@ -57,6 +57,7 @@ class ScrapeResponse:
     page_status_code: int = 0
     page_title: Optional[str] = None
     structured_data: Optional[Dict[str, Any]] = None
+    links: Optional[List[str]] = None
 
 
 @dataclass
