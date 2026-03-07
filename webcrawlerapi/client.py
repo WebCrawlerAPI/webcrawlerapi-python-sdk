@@ -8,6 +8,7 @@ from .models import (
     Action,
     CrawlResponse,
     Job,
+    JobMarkdownResponse,
     ScrapeId,
     ScrapeResponse,
     ScrapeResponseError,
@@ -123,21 +124,41 @@ class WebCrawlerAPI:
         response.raise_for_status()
         return Job(response.json())
 
-    def get_job_markdown(self, job_id: str) -> str:
+    def get_job_markdown(self, job_id: str) -> JobMarkdownResponse:
         """
-        Get combined markdown content for a completed markdown job.
+        Get the URL to the combined markdown file for a completed markdown job.
 
         Args:
             job_id (str): The unique identifier of the job
 
         Returns:
-            str: Combined markdown content
+            JobMarkdownResponse: Response containing the content_url to the markdown file
 
         Raises:
             requests.exceptions.RequestException: If the API request fails
         """
         response = self.session.get(
             urljoin(self.base_url, f"/{CRAWLER_VERSION}/job/{job_id}/markdown")
+        )
+        response.raise_for_status()
+        data = response.json()
+        return JobMarkdownResponse(content_url=data["content_url"])
+
+    def get_job_markdown_content(self, job_id: str) -> str:
+        """
+        Download the combined markdown content for a completed markdown job.
+
+        Args:
+            job_id (str): The unique identifier of the job
+
+        Returns:
+            str: Combined markdown content as plain text
+
+        Raises:
+            requests.exceptions.RequestException: If the API request fails
+        """
+        response = self.session.get(
+            urljoin(self.base_url, f"/{CRAWLER_VERSION}/job/{job_id}/markdown/content")
         )
 
         if not response.ok:
@@ -303,7 +324,7 @@ class WebCrawlerAPI:
                 f"Job finished with status {job.status}"
             )
 
-        return self.get_job_markdown(job.id)
+        return self.get_job_markdown_content(job.id)
 
     def scrape_async(
         self,

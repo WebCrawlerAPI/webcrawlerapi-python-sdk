@@ -39,6 +39,13 @@ class CrawlResponse:
 
 
 @dataclass
+class JobMarkdownResponse:
+    """Response from the get_job_markdown endpoint."""
+
+    content_url: str
+
+
+@dataclass
 class ScrapeId:
     """Response from an asynchronous scrape request."""
 
