@@ -33,11 +33,13 @@ from .models import (
     ScrapeResponse,
     ScrapeResponseError,
     UploadS3Action,
+    WebCrawlerApiError,
 )
 
 __version__ = "1.0.0"
 __all__ = [
     "WebCrawlerAPI",
+    "WebCrawlerApiError",
     "Job",
     "JobItem",
     "JobMarkdownResponse",

@@ -12,6 +12,7 @@ from .models import (
     ScrapeId,
     ScrapeResponse,
     ScrapeResponseError,
+    WebCrawlerApiError,
 )
 
 CRAWLER_VERSION = "v1"
@@ -30,7 +31,6 @@ class WebCrawlerAPI:
         Args:
             api_key (str): Your API key for authentication
             base_url (str): The base URL of the API (optional)
-            version (str): API version to use (optional, defaults to 'v1')
         """
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
@@ -39,10 +39,29 @@ class WebCrawlerAPI:
             {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
         )
 
+    def _raise_for_error(self, response: requests.Response) -> None:
+        """Parse API error response and raise WebCrawlerApiError."""
+        try:
+            error_data = response.json()
+            error_code = error_data.get("error_code") or "unknown_error"
+            error_message = (
+                error_data.get("error_message")
+                or error_data.get("error")
+                or f"Request failed with status {response.status_code}"
+            )
+            raise WebCrawlerApiError(error_code, error_message, response.status_code)
+        except (ValueError, KeyError):
+            raise WebCrawlerApiError(
+                "unknown_error",
+                f"Request failed with status {response.status_code} {response.reason}",
+                response.status_code,
+            )
+
     def crawl_async(
         self,
         url: str,
-        scrape_type: str = "markdown",
+        output_formats: Optional[List[str]] = None,
+        scrape_type: Optional[str] = None,
         items_limit: int = 10,
         webhook_url: Optional[str] = None,
         whitelist_regexp: Optional[str] = None,
@@ -52,36 +71,47 @@ class WebCrawlerAPI:
         main_content_only: bool = False,
         max_depth: Optional[int] = None,
         max_age: Optional[int] = None,
+        keep_query_params: Optional[bool] = None,
     ) -> CrawlResponse:
         """
         Start a new crawling job asynchronously.
 
         Args:
             url (str): The seed URL where the crawler starts
-            scrape_type (str): Type of scraping (html, cleaned, markdown)
+            output_formats (list, optional): Output formats to request, e.g. ['markdown', 'html'].
+                Defaults to ['markdown'] if neither output_formats nor scrape_type is provided.
+            scrape_type (str, optional): Deprecated. Use output_formats instead.
             items_limit (int): Maximum number of pages to crawl
             webhook_url (str, optional): URL for webhook notifications
             whitelist_regexp (str, optional): Regex pattern for URL whitelist
             blacklist_regexp (str, optional): Regex pattern for URL blacklist
             actions (Action or List[Action], optional): Actions to perform during crawling
-            respect_robots_txt (bool): Whether to respect robots.txt file (default: False)
+            respect_robots_txt (bool): Whether to respect robots.txt (default: False)
             main_content_only (bool): Whether to extract only main content (default: False)
-            max_depth (int, optional): Maximum depth of crawl (0 for seed URL only, 1 for one level deep, etc.)
-            max_age (int, optional): Maximum age in seconds for cached content. If specified, returns cached results if available and not older than max_age seconds. Use 0 to bypass cache.
+            max_depth (int, optional): Maximum crawl depth (0 = seed only, 1 = seed + direct links)
+            max_age (int, optional): Max age in seconds for cached content. 0 = always fresh.
+            keep_query_params (bool, optional): Keep URL query params when deduplicating links.
+                When False, example.com?a=1 and example.com?a=2 are treated as the same URL (default: True).
 
         Returns:
             CrawlResponse: Response containing the job ID
 
         Raises:
-            requests.exceptions.RequestException: If the API request fails
+            WebCrawlerApiError: If the API returns an error response
+            requests.exceptions.RequestException: If the HTTP request fails
         """
-        payload = {
+        payload: Dict[str, Any] = {
             "url": url,
-            "scrape_type": scrape_type,
             "items_limit": items_limit,
-            "respect_robots_txt": respect_robots_txt,
-            "main_content_only": main_content_only,
         }
+
+        # output_formats takes priority; fall back to scrape_type; default to ['markdown']
+        if output_formats is not None:
+            payload["output_formats"] = output_formats
+        elif scrape_type is not None:
+            payload["scrape_type"] = scrape_type
+        else:
+            payload["output_formats"] = ["markdown"]
 
         if webhook_url:
             payload["webhook_url"] = webhook_url
@@ -93,16 +123,21 @@ class WebCrawlerAPI:
             payload["max_depth"] = max_depth
         if max_age is not None:
             payload["max_age"] = max_age
+        if respect_robots_txt:
+            payload["respect_robots_txt"] = respect_robots_txt
+        if main_content_only:
+            payload["main_content_only"] = main_content_only
+        if keep_query_params is not None:
+            payload["keep_query_params"] = keep_query_params
         if actions:
-            # Convert single action to list if needed
             action_list = [actions] if not isinstance(actions, list) else actions
-            # Convert dataclass objects to dictionaries
             payload["actions"] = [vars(action) for action in action_list]
 
         response = self.session.post(
             urljoin(self.base_url, f"/{CRAWLER_VERSION}/crawl"), json=payload
         )
-        response.raise_for_status()
+        if not response.ok:
+            self._raise_for_error(response)
         return CrawlResponse(id=response.json()["id"])
 
     def get_job(self, job_id: str) -> Job:
@@ -116,12 +151,14 @@ class WebCrawlerAPI:
             Job: A Job object containing all job details and items
 
         Raises:
-            requests.exceptions.RequestException: If the API request fails
+            WebCrawlerApiError: If the API returns an error response
+            requests.exceptions.RequestException: If the HTTP request fails
         """
         response = self.session.get(
             urljoin(self.base_url, f"/{CRAWLER_VERSION}/job/{job_id}")
         )
-        response.raise_for_status()
+        if not response.ok:
+            self._raise_for_error(response)
         return Job(response.json())
 
     def get_job_markdown(self, job_id: str) -> JobMarkdownResponse:
@@ -135,12 +172,14 @@ class WebCrawlerAPI:
             JobMarkdownResponse: Response containing the content_url to the markdown file
 
         Raises:
-            requests.exceptions.RequestException: If the API request fails
+            WebCrawlerApiError: If the API returns an error response
+            requests.exceptions.RequestException: If the HTTP request fails
         """
         response = self.session.get(
             urljoin(self.base_url, f"/{CRAWLER_VERSION}/job/{job_id}/markdown")
         )
-        response.raise_for_status()
+        if not response.ok:
+            self._raise_for_error(response)
         data = response.json()
         return JobMarkdownResponse(content_url=data["content_url"])
 
@@ -155,29 +194,14 @@ class WebCrawlerAPI:
             str: Combined markdown content as plain text
 
         Raises:
-            requests.exceptions.RequestException: If the API request fails
+            WebCrawlerApiError: If the API returns an error response
+            requests.exceptions.RequestException: If the HTTP request fails
         """
         response = self.session.get(
             urljoin(self.base_url, f"/{CRAWLER_VERSION}/job/{job_id}/markdown/content")
         )
-
         if not response.ok:
-            try:
-                error_payload = response.json()
-                detail = (
-                    error_payload.get("message")
-                    or error_payload.get("error_message")
-                    or error_payload.get("error")
-                )
-            except ValueError:
-                detail = response.text
-
-            try:
-                response.raise_for_status()
-            except requests.exceptions.HTTPError as exc:
-                raise requests.exceptions.HTTPError(f"{exc}: {detail}") from exc
-
-        response.raise_for_status()
+            self._raise_for_error(response)
         return response.text
 
     def cancel_job(self, job_id: str) -> Dict[str, str]:
@@ -192,18 +216,21 @@ class WebCrawlerAPI:
             dict: Response containing confirmation message
 
         Raises:
-            requests.exceptions.RequestException: If the API request fails
+            WebCrawlerApiError: If the API returns an error response
+            requests.exceptions.RequestException: If the HTTP request fails
         """
         response = self.session.put(
             urljoin(self.base_url, f"/{CRAWLER_VERSION}/job/{job_id}/cancel")
         )
-        response.raise_for_status()
+        if not response.ok:
+            self._raise_for_error(response)
         return cast(Dict[str, str], response.json())
 
     def crawl(
         self,
         url: str,
-        scrape_type: str = "markdown",
+        output_formats: Optional[List[str]] = None,
+        scrape_type: Optional[str] = None,
         items_limit: int = 10,
         webhook_url: Optional[str] = None,
         whitelist_regexp: Optional[str] = None,
@@ -213,38 +240,38 @@ class WebCrawlerAPI:
         main_content_only: bool = False,
         max_depth: Optional[int] = None,
         max_age: Optional[int] = None,
+        keep_query_params: Optional[bool] = None,
         max_polls: int = 100,
     ) -> Job:
         """
         Start a new crawling job and wait for its completion.
 
-        This method will start a crawling job and continuously poll its status
-        until it reaches a terminal state (done, error, or cancelled) or until
-        the maximum number of polls is reached.
-
         Args:
             url (str): The seed URL where the crawler starts
-            scrape_type (str): Type of scraping (html, cleaned, markdown)
+            output_formats (list, optional): Output formats, e.g. ['markdown']. Defaults to ['markdown'].
+            scrape_type (str, optional): Deprecated. Use output_formats instead.
             items_limit (int): Maximum number of pages to crawl
             webhook_url (str, optional): URL for webhook notifications
             whitelist_regexp (str, optional): Regex pattern for URL whitelist
             blacklist_regexp (str, optional): Regex pattern for URL blacklist
             actions (Action or List[Action], optional): Actions to perform during crawling
-            respect_robots_txt (bool): Whether to respect robots.txt file (default: False)
+            respect_robots_txt (bool): Whether to respect robots.txt (default: False)
             main_content_only (bool): Whether to extract only main content (default: False)
-            max_depth (int, optional): Maximum depth of crawl (0 for seed URL only, 1 for one level deep, etc.)
-            max_age (int, optional): Maximum age in seconds for cached content. If specified, returns cached results if available and not older than max_age seconds. Use 0 to bypass cache.
+            max_depth (int, optional): Maximum crawl depth
+            max_age (int, optional): Max age in seconds for cached content. 0 = always fresh.
+            keep_query_params (bool, optional): Keep URL query params when deduplicating links (default: True).
             max_polls (int): Maximum number of status checks before returning (default: 100)
 
         Returns:
             Job: The final job state after completion or max polls
 
         Raises:
+            WebCrawlerApiError: If the API returns an error response
             requests.exceptions.RequestException: If any API request fails
         """
-        # Start the crawling job
         response = self.crawl_async(
             url=url,
+            output_formats=output_formats,
             scrape_type=scrape_type,
             items_limit=items_limit,
             webhook_url=webhook_url,
@@ -255,6 +282,7 @@ class WebCrawlerAPI:
             main_content_only=main_content_only,
             max_depth=max_depth,
             max_age=max_age,
+            keep_query_params=keep_query_params,
         )
 
         job_id = response.id
@@ -275,7 +303,6 @@ class WebCrawlerAPI:
             polls += 1
             job = self.get_job(job_id)
 
-        # Return the last known state if max_polls is reached
         return job
 
     def crawl_raw_markdown(
@@ -291,17 +318,22 @@ class WebCrawlerAPI:
         main_content_only: bool = False,
         max_depth: Optional[int] = None,
         max_age: Optional[int] = None,
+        keep_query_params: Optional[bool] = None,
         max_polls: int = 100,
     ) -> str:
         """
-        Run a crawl job and return the combined markdown output when finished.
+        Run a crawl job with markdown output and return the combined markdown content when finished.
+
+        Args:
+            scrape_type (str): Deprecated. Always uses markdown output.
 
         Raises:
+            WebCrawlerApiError: If the API returns an error or the job doesn't complete successfully
             requests.exceptions.RequestException: If any API request fails
         """
         job = self.crawl(
             url=url,
-            scrape_type=scrape_type,
+            output_formats=["markdown"],
             items_limit=items_limit,
             webhook_url=webhook_url,
             whitelist_regexp=whitelist_regexp,
@@ -311,17 +343,14 @@ class WebCrawlerAPI:
             main_content_only=main_content_only,
             max_depth=max_depth,
             max_age=max_age,
+            keep_query_params=keep_query_params,
             max_polls=max_polls,
         )
 
-        if job.scrape_type != "markdown":
-            raise requests.exceptions.HTTPError(
-                "crawl_raw_markdown requires scrape_type to be markdown"
-            )
-
         if job.status != "done":
-            raise requests.exceptions.HTTPError(
-                f"Job finished with status {job.status}"
+            raise WebCrawlerApiError(
+                "job_not_done",
+                f"Job finished with status {job.status}",
             )
 
         return self.get_job_markdown_content(job.id)
@@ -329,43 +358,49 @@ class WebCrawlerAPI:
     def scrape_async(
         self,
         url: str,
-        output_format: str = "markdown",
+        output_formats: Optional[List[str]] = None,
+        output_format: Optional[str] = None,
         webhook_url: Optional[str] = None,
         clean_selectors: Optional[str] = None,
         prompt: Optional[str] = None,
         response_schema: Optional[Dict[str, Any]] = None,
         actions: Optional[Union[Action, List[Action]]] = None,
-        respect_robots_txt: bool = False,
         main_content_only: bool = False,
         max_age: Optional[int] = None,
+        respect_robots_txt: bool = False,
+        keep_query_params: Optional[bool] = None,
     ) -> ScrapeId:
         """
         Start a new scraping job asynchronously.
 
         Args:
             url (str): The URL to scrape
-            output_format (str): Output format (markdown, cleaned, html)
+            output_formats (list, optional): Output formats, e.g. ['markdown', 'html'].
+            output_format (str, optional): Deprecated. Use output_formats instead.
             webhook_url (str, optional): URL to receive a POST request when scraping is complete
-            clean_selectors (str, optional): CSS selectors to clean from the content
-            prompt (str, optional): Prompt to guide the AI response
-            response_schema (dict, optional): JSON Schema for structured output format. Works with the prompt parameter.
-            actions (Action or List[Action], optional): Actions to perform after scraping (for example S3 upload)
-            respect_robots_txt (bool): Whether to respect robots.txt file (default: False)
-            main_content_only (bool): Whether to extract only main content (default: False)
-            max_age (int, optional): Maximum age in seconds for cached content. If specified, returns cached results if available and not older than max_age seconds. Use 0 to bypass cache.
+            clean_selectors (str, optional): CSS selectors to remove from the output
+            prompt (str, optional): AI prompt to extract or transform content (extra cost)
+            response_schema (dict, optional): JSON Schema for structured AI output (use with prompt)
+            actions (Action or List[Action], optional): Actions to perform after scraping
+            main_content_only (bool): Strip navigation, ads, footers (default: False)
+            max_age (int, optional): Max age in seconds for cached content. 0 = always fresh.
+            respect_robots_txt (bool): Respect robots.txt and return error if URL is disallowed (default: False).
+            keep_query_params (bool, optional): Keep URL query params when storing the URL (default: True).
 
         Returns:
             ScrapeId: Response containing the scrape job ID
 
         Raises:
-            requests.exceptions.RequestException: If the API request fails
+            WebCrawlerApiError: If the API returns an error response
+            requests.exceptions.RequestException: If the HTTP request fails
         """
-        payload = {
-            "url": url,
-            "output_format": output_format,
-            "respect_robots_txt": respect_robots_txt,
-            "main_content_only": main_content_only,
-        }
+        payload: Dict[str, Any] = {"url": url}
+
+        # output_formats takes priority over deprecated output_format
+        if output_formats is not None:
+            payload["output_formats"] = output_formats
+        elif output_format is not None:
+            payload["output_format"] = output_format
 
         if webhook_url:
             payload["webhook_url"] = webhook_url
@@ -377,10 +412,14 @@ class WebCrawlerAPI:
             payload["response_schema"] = response_schema
         if max_age is not None:
             payload["max_age"] = max_age
+        if main_content_only:
+            payload["main_content_only"] = main_content_only
+        if respect_robots_txt:
+            payload["respect_robots_txt"] = respect_robots_txt
+        if keep_query_params is not None:
+            payload["keep_query_params"] = keep_query_params
         if actions:
-            # Convert single action to list if needed
             action_list = [actions] if not isinstance(actions, list) else actions
-            # Convert dataclass objects to dictionaries
             payload["actions"] = [vars(action) for action in action_list]
 
         response = self.session.post(
@@ -389,18 +428,8 @@ class WebCrawlerAPI:
         )
 
         if not response.ok:
-            try:
-                error_data = response.json()
-                raise requests.exceptions.HTTPError(
-                    f"{response.status_code} {response.reason}: {error_data.get('error', 'Unknown error')}"
-                )
-            except ValueError:
-                # If response is not JSON, raise with status and text
-                raise requests.exceptions.HTTPError(
-                    f"{response.status_code} {response.reason}: {response.text}"
-                )
+            self._raise_for_error(response)
 
-        response.raise_for_status()
         return ScrapeId(id=response.json()["id"])
 
     def get_scrape(self, scrape_id: str) -> Union[ScrapeResponse, ScrapeResponseError]:
@@ -414,15 +443,17 @@ class WebCrawlerAPI:
             Union[ScrapeResponse, ScrapeResponseError]: The scrape result or error
 
         Raises:
-            requests.exceptions.RequestException: If the API request fails
+            WebCrawlerApiError: If the API returns an error response
+            requests.exceptions.RequestException: If the HTTP request fails
         """
         response = self.session.get(
             urljoin(self.base_url, f"/{SCRAPER_VERSION}/scrape/{scrape_id}")
         )
 
-        response.raise_for_status()
-        response_data = response.json()
+        if not response.ok:
+            self._raise_for_error(response)
 
+        response_data = response.json()
         status = response_data.get("status")
 
         if status == "done":
@@ -445,75 +476,104 @@ class WebCrawlerAPI:
                 status=status,
             )
         else:  # in_progress or any other status
-            return ScrapeResponse(success=False, status=status)
+            return ScrapeResponse(success=False, status=status, page_status_code=0)
 
     def scrape(
         self,
         url: str,
-        output_format: str = "markdown",
+        output_formats: Optional[List[str]] = None,
+        output_format: Optional[str] = None,
         webhook_url: Optional[str] = None,
         clean_selectors: Optional[str] = None,
         prompt: Optional[str] = None,
         response_schema: Optional[Dict[str, Any]] = None,
         actions: Optional[Union[Action, List[Action]]] = None,
-        respect_robots_txt: bool = False,
         main_content_only: bool = False,
         max_age: Optional[int] = None,
-        max_polls: int = 100,
+        respect_robots_txt: bool = False,
+        keep_query_params: Optional[bool] = None,
     ) -> Union[ScrapeResponse, ScrapeResponseError]:
         """
-        Scrape a single URL and wait for completion.
+        Scrape a single URL synchronously and return the result.
 
-        This method will start a scraping job and continuously poll its status
-        until it reaches a terminal state (done or error) or until
-        the maximum number of polls is reached.
+        Calls the synchronous scrape endpoint which blocks until the scrape is complete.
+        For fire-and-poll behaviour use scrape_async() + get_scrape() instead.
 
         Args:
             url (str): The URL to scrape
-            output_format (str): Output format (markdown, cleaned, html)
+            output_formats (list, optional): Output formats, e.g. ['markdown', 'html'].
+            output_format (str, optional): Deprecated. Use output_formats instead.
             webhook_url (str, optional): URL to receive a POST request when scraping is complete
-            clean_selectors (str, optional): CSS selectors to clean from the content
-            prompt (str, optional): Prompt to guide the AI response
-            response_schema (dict, optional): JSON Schema for structured output format. Works with the prompt parameter.
+            clean_selectors (str, optional): CSS selectors to remove from the output
+            prompt (str, optional): AI prompt to extract or transform content (extra cost)
+            response_schema (dict, optional): JSON Schema for structured AI output (use with prompt)
             actions (Action or List[Action], optional): Actions to perform during scraping
-            respect_robots_txt (bool): Whether to respect robots.txt file (default: False)
-            main_content_only (bool): Whether to extract only main content (default: False)
-            max_age (int, optional): Maximum age in seconds for cached content. If specified, returns cached results if available and not older than max_age seconds. Use 0 to bypass cache.
-            max_polls (int): Maximum number of status checks before returning (default: 100)
+            main_content_only (bool): Strip navigation, ads, footers (default: False)
+            max_age (int, optional): Max age in seconds for cached content. 0 = always fresh.
+            respect_robots_txt (bool): Respect robots.txt and return error if URL is disallowed (default: False).
+            keep_query_params (bool, optional): Keep URL query params when storing the URL (default: True).
 
         Returns:
-            Union[ScrapeResponse, ScrapeResponseError]: The final scrape result
+            Union[ScrapeResponse, ScrapeResponseError]: The scrape result
 
         Raises:
-            requests.exceptions.RequestException: If any API request fails
+            WebCrawlerApiError: If the API returns an error response
+            requests.exceptions.RequestException: If the HTTP request fails
         """
-        # Start the scraping job
-        response = self.scrape_async(
-            url=url,
-            output_format=output_format,
-            webhook_url=webhook_url,
-            clean_selectors=clean_selectors,
-            prompt=prompt,
-            response_schema=response_schema,
-            actions=actions,
-            respect_robots_txt=respect_robots_txt,
-            main_content_only=main_content_only,
-            max_age=max_age,
+        payload: Dict[str, Any] = {"url": url}
+
+        if output_formats is not None:
+            payload["output_formats"] = output_formats
+        elif output_format is not None:
+            payload["output_format"] = output_format
+
+        if webhook_url:
+            payload["webhook_url"] = webhook_url
+        if clean_selectors:
+            payload["clean_selectors"] = clean_selectors
+        if prompt:
+            payload["prompt"] = prompt
+        if response_schema is not None:
+            payload["response_schema"] = response_schema
+        if max_age is not None:
+            payload["max_age"] = max_age
+        if main_content_only:
+            payload["main_content_only"] = main_content_only
+        if respect_robots_txt:
+            payload["respect_robots_txt"] = respect_robots_txt
+        if keep_query_params is not None:
+            payload["keep_query_params"] = keep_query_params
+        if actions:
+            action_list = [actions] if not isinstance(actions, list) else actions
+            payload["actions"] = [vars(action) for action in action_list]
+
+        response = self.session.post(
+            urljoin(self.base_url, f"/{SCRAPER_VERSION}/scrape"),
+            json=payload,
         )
 
-        scrape_id = response.id
-        polls = 0
-        result: Union[ScrapeResponse, ScrapeResponseError] = self.get_scrape(scrape_id)
+        if not response.ok:
+            self._raise_for_error(response)
 
-        while polls < max_polls:
-            if isinstance(result, ScrapeResponse) and result.status == "done":
-                return result
+        response_data = response.json()
+        status = response_data.get("status")
 
-            if isinstance(result, ScrapeResponseError):
-                return result
+        if status == "error":
+            return ScrapeResponseError(
+                success=False,
+                error_code=response_data.get("error_code", "unknown"),
+                error_message=response_data.get("error_message", "Scraping failed"),
+                status=status,
+            )
 
-            time.sleep(self.DEFAULT_POLL_DELAY_SECONDS)
-            polls += 1
-            result = self.get_scrape(scrape_id)
-
-        return result
+        return ScrapeResponse(
+            success=response_data.get("success", True),
+            status=status,
+            markdown=response_data.get("markdown"),
+            cleaned_content=response_data.get("cleaned_content"),
+            raw_content=response_data.get("raw_content"),
+            page_status_code=response_data.get("page_status_code", 0),
+            page_title=response_data.get("page_title"),
+            structured_data=response_data.get("structured_data"),
+            links=response_data.get("links"),
+        )

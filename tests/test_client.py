@@ -14,6 +14,7 @@ from webcrawlerapi.models import (
     ScrapeResponse,
     ScrapeResponseError,
     UploadS3Action,
+    WebCrawlerApiError,
 )
 
 
@@ -159,7 +160,7 @@ class TestWebCrawlerAPI:
             status=400,
         )
 
-        with pytest.raises(requests.exceptions.HTTPError):
+        with pytest.raises(WebCrawlerApiError):
             client.crawl_async(url="invalid-url")
 
     @responses.activate
@@ -278,7 +279,6 @@ class TestWebCrawlerAPI:
             output_format="cleaned",
             clean_selectors=".ads, .footer",
             prompt="Extract main content",
-            respect_robots_txt=True,
         )
 
         assert isinstance(result, ScrapeId)
@@ -293,7 +293,6 @@ class TestWebCrawlerAPI:
         assert payload["output_format"] == "cleaned"
         assert payload["clean_selectors"] == ".ads, .footer"
         assert payload["prompt"] == "Extract main content"
-        assert payload["respect_robots_txt"] is True
 
     @responses.activate
     def test_scrape_async_error_response(self, client):
@@ -305,11 +304,11 @@ class TestWebCrawlerAPI:
             status=400,
         )
 
-        with pytest.raises(requests.exceptions.HTTPError) as exc_info:
+        with pytest.raises(WebCrawlerApiError) as exc_info:
             client.scrape_async(url="invalid-url")
 
-        assert "400" in str(exc_info.value)
-        assert "Invalid URL format" in str(exc_info.value)
+        assert exc_info.value.status_code == 400
+        assert "Invalid URL format" in exc_info.value.error_message
 
     @responses.activate
     def test_get_scrape_success_done(self, client):
@@ -385,99 +384,63 @@ class TestWebCrawlerAPI:
 
     @responses.activate
     def test_scrape_with_polling_success(self, client):
-        """Test scrape method that polls until completion."""
-        # Mock scrape_async response
+        """Test scrape method returns done result from sync endpoint."""
         responses.add(
             responses.POST,
-            "https://api.test.com/v2/scrape?async=true",
-            json={"id": "scrape-123"},
+            "https://api.test.com/v2/scrape",
+            json={
+                "status": "done",
+                "success": True,
+                "markdown": "# Scraped Content",
+            },
             status=200,
         )
 
-        # Mock get_scrape response with done status
-        scrape_data = {
-            "status": "done",
-            "success": True,
-            "markdown": "# Scraped Content",
-        }
+        result = client.scrape(url="https://example.com")
 
-        responses.add(
-            responses.GET,
-            "https://api.test.com/v2/scrape/scrape-123",
-            json=scrape_data,
-            status=200,
-        )
-
-        with patch("time.sleep") as mock_sleep:
-            result = client.scrape(url="https://example.com")
-
-            assert isinstance(result, ScrapeResponse)
-            assert result.status == "done"
-            assert result.markdown == "# Scraped Content"
-            # Should not sleep since scrape is already done
-            mock_sleep.assert_not_called()
+        assert isinstance(result, ScrapeResponse)
+        assert result.status == "done"
+        assert result.markdown == "# Scraped Content"
 
     @responses.activate
     def test_scrape_with_polling_error(self, client):
-        """Test scrape method that polls and gets error."""
-        # Mock scrape_async response
+        """Test scrape method that gets error from sync endpoint."""
         responses.add(
             responses.POST,
-            "https://api.test.com/v2/scrape?async=true",
-            json={"id": "scrape-123"},
+            "https://api.test.com/v2/scrape",
+            json={
+                "status": "error",
+                "success": False,
+                "error_code": "FETCH_ERROR",
+                "error_message": "Failed to fetch page",
+            },
             status=200,
         )
 
-        # Mock get_scrape response with error
-        error_data = {
-            "status": "error",
-            "success": False,
-            "error_code": "FETCH_ERROR",
-            "error_message": "Failed to fetch page",
-        }
+        result = client.scrape(url="https://example.com")
 
-        responses.add(
-            responses.GET,
-            "https://api.test.com/v2/scrape/scrape-123",
-            json=error_data,
-            status=200,
-        )
-
-        with patch("time.sleep") as mock_sleep:
-            result = client.scrape(url="https://example.com")
-
-            assert isinstance(result, ScrapeResponseError)
-            assert result.error_code == "FETCH_ERROR"
-            # Should not sleep since error is immediate
-            mock_sleep.assert_not_called()
+        assert isinstance(result, ScrapeResponseError)
+        assert result.error_code == "FETCH_ERROR"
 
     @responses.activate
     def test_scrape_with_polling_max_polls(self, client):
-        """Test scrape method that reaches max_polls."""
-        # Mock scrape_async response
+        """Test scrape method returns full response data from sync endpoint."""
         responses.add(
             responses.POST,
-            "https://api.test.com/v2/scrape?async=true",
-            json={"id": "scrape-123"},
+            "https://api.test.com/v2/scrape",
+            json={
+                "status": "done",
+                "success": True,
+                "markdown": "# Content",
+                "page_status_code": 200,
+                "page_title": "Test Page",
+            },
             status=200,
         )
 
-        # Mock get_scrape responses with in_progress status
-        progress_data = {"status": "in_progress", "success": False}
+        result = client.scrape(url="https://example.com")
 
-        for _ in range(3):
-            responses.add(
-                responses.GET,
-                "https://api.test.com/v2/scrape/scrape-123",
-                json=progress_data,
-                status=200,
-            )
-
-        with patch("time.sleep") as mock_sleep:
-            result = client.scrape(url="https://example.com", max_polls=3)
-
-            assert isinstance(result, ScrapeResponse)
-            assert result.status == "in_progress"
-            # Should sleep 3 times (once after each poll)
-            assert mock_sleep.call_count == 3
-            mock_sleep.assert_called_with(5)  # DEFAULT_POLL_DELAY_SECONDS
+        assert isinstance(result, ScrapeResponse)
+        assert result.status == "done"
+        assert result.page_status_code == 200
+        assert result.page_title == "Test Page"

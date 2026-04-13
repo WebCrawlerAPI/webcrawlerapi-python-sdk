@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+import requests
+
 
 def parse_datetime(datetime_str: str) -> datetime:
     """
@@ -29,6 +31,21 @@ def parse_datetime(datetime_str: str) -> datetime:
         datetime_str = f"{base_time}.{microseconds}{timezone_part}"
 
     return datetime.fromisoformat(datetime_str)
+
+
+class WebCrawlerApiError(Exception):
+    """Custom exception for WebCrawlerAPI API errors."""
+
+    def __init__(
+        self, error_code: str, error_message: str, status_code: Optional[int] = None
+    ):
+        super().__init__(error_message)
+        self.error_code = error_code
+        self.error_message = error_message
+        self.status_code = status_code
+
+    def __repr__(self) -> str:
+        return f"WebCrawlerApiError(error_code={self.error_code!r}, status_code={self.status_code})"
 
 
 @dataclass
@@ -134,8 +151,10 @@ class JobItem:
         self.last_error: Optional[str] = data.get("last_error")
         self.error_code: Optional[str] = data.get("error_code")
         self.depth: Optional[int] = data.get("depth")
+        self.link: Optional[str] = data.get("link")
+        self.links: Optional[List[str]] = data.get("links")
 
-        # Optional content URLs based on scrape_type
+        # Optional content URLs based on output_formats / scrape_type
         self.raw_content_url: Optional[str] = data.get("raw_content_url")
         self.cleaned_content_url: Optional[str] = data.get("cleaned_content_url")
         self.markdown_content_url: Optional[str] = data.get("markdown_content_url")
@@ -143,7 +162,7 @@ class JobItem:
         # Reference to parent job
         self._job = job
 
-        # Cache for content
+        # Cache for content property
         self._content: Optional[str] = None
 
     @property
@@ -151,47 +170,81 @@ class JobItem:
         """Get the parent job this item belongs to."""
         return self._job
 
+    def _fetch_content_url(self, url: Optional[str]) -> Optional[str]:
+        """Fetch text content from a URL. Returns None if url is None."""
+        if not url:
+            return None
+        response = requests.get(url)
+        response.raise_for_status()
+        return response.text
+
+    def _resolve_content_url(self) -> Optional[str]:
+        """
+        Resolve the content URL based on output_formats (priority: markdown > cleaned > html),
+        falling back to scrape_type for backward compatibility.
+        """
+        job = self._job
+        if job.output_formats:
+            priority = ["markdown", "cleaned", "html"]
+            for fmt in priority:
+                if fmt in job.output_formats:
+                    if fmt == "markdown":
+                        return self.markdown_content_url
+                    elif fmt == "cleaned":
+                        return self.cleaned_content_url
+                    elif fmt == "html":
+                        return self.raw_content_url
+            return None
+        # Fall back to scrape_type for backward compatibility
+        if job.scrape_type == "html":
+            return self.raw_content_url
+        elif job.scrape_type == "cleaned":
+            return self.cleaned_content_url
+        elif job.scrape_type == "markdown":
+            return self.markdown_content_url
+        return None
+
+    def get_content(self) -> Optional[str]:
+        """
+        Fetch content in the highest-priority format (markdown > cleaned > html).
+        Returns None if either the job or item status is not 'done'.
+        """
+        if self._job.status != "done" or self.status != "done":
+            return None
+        return self._fetch_content_url(self._resolve_content_url())
+
+    def get_markdown(self) -> Optional[str]:
+        """Fetch markdown content for this item."""
+        return self._fetch_content_url(self.markdown_content_url)
+
+    def get_cleaned(self) -> Optional[str]:
+        """Fetch cleaned HTML content for this item."""
+        return self._fetch_content_url(self.cleaned_content_url)
+
+    def get_html(self) -> Optional[str]:
+        """Fetch raw HTML content for this item."""
+        return self._fetch_content_url(self.raw_content_url)
+
     @property
     def content(self) -> Optional[str]:
         """
-        Get the content of the crawled page based on the job's scrape_type.
-        The content is fetched from the appropriate URL (raw, cleaned, or markdown)
-        and cached for subsequent access.
+        Get the content of the crawled page based on the job's output_formats / scrape_type.
+        Requires both job status and item status to be 'done'. Result is cached.
 
         Returns:
-            Optional[str]: The content of the page, or None if content is not available
-                         or if the item's status is not "done"
+            Optional[str]: The content of the page, or None if not available or not done.
 
         Raises:
             requests.exceptions.RequestException: If the content request fails
         """
-        # Return None if item is not done
-        if self.status != "done":
+        if self._job.status != "done" or self.status != "done":
             return None
 
         # Return cached content if available
         if self._content is not None:
             return self._content
 
-        # Get the appropriate content URL based on scrape_type
-        content_url = None
-        if self.job.scrape_type == "html":
-            content_url = self.raw_content_url
-        elif self.job.scrape_type == "cleaned":
-            content_url = self.cleaned_content_url
-        elif self.job.scrape_type == "markdown":
-            content_url = self.markdown_content_url
-
-        # If no URL is available, return None
-        if not content_url:
-            return None
-
-        # Fetch and cache the content
-        import requests
-
-        response = requests.get(content_url)
-        response.raise_for_status()
-        self._content = response.text
+        self._content = self._fetch_content_url(self._resolve_content_url())
         return self._content
 
 
@@ -205,7 +258,8 @@ class Job:
         self.org_id: str = data["org_id"]
         self.url: str = data["url"]
         self.status: str = data["status"]
-        self.scrape_type: str = data["scrape_type"]
+        self.scrape_type: Optional[str] = data.get("scrape_type")
+        self.output_formats: Optional[List[str]] = data.get("output_formats")
         self.whitelist_regexp: Optional[str] = data.get("whitelist_regexp")
         self.blacklist_regexp: Optional[str] = data.get("blacklist_regexp")
         self.items_limit: int = data["items_limit"]

@@ -1,4 +1,4 @@
-# WebcrawlerAPI Python SDK guide for LLM, OpenAI Codex, Claude Code
+# WebcrawlerAPI Python SDK guide for LLM, OpenAI Codex, AI coding agent
 
 ## Overview
 
