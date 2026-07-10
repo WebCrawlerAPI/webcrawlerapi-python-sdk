@@ -25,6 +25,7 @@ Basic usage:
 from .client import WebCrawlerAPI
 from .models import (
     Action,
+    AgentRun,
     CrawlResponse,
     Job,
     JobItem,
@@ -49,4 +50,5 @@ __all__ = [
     "ScrapeResponseError",
     "Action",
     "UploadS3Action",
+    "AgentRun",
 ]

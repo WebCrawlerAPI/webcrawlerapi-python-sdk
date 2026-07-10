@@ -94,6 +94,31 @@ class ScrapeResponseError:
     status: Optional[str] = None
 
 
+class AgentRun:
+    """Represents an agent run job."""
+
+    TERMINAL_STATUSES = {"done", "error", "canceled"}
+
+    def __init__(self, data: Dict[str, Any]):
+        self.id: str = data["id"]
+        self.status: str = data["status"]
+        self.prompt: str = data["prompt"]
+        self.model: str = data["model"]
+        self.data: Optional[Any] = data.get("data")
+        self.error_reason: Optional[str] = data.get("error_reason")
+        self.balance_used_usd: float = data.get("balance_used_usd", 0)
+        self.max_spend_usd: Optional[float] = data.get("max_spend_usd")
+        self.urls: Optional[List[str]] = data.get("urls")
+        self.created_at: datetime = parse_datetime(data["created_at"])
+        self.updated_at: datetime = parse_datetime(data["updated_at"])
+        self.success: bool = data.get("success", False)
+
+    @property
+    def is_terminal(self) -> bool:
+        """Check if the agent run is in a terminal state (done, error, or canceled)."""
+        return self.status in self.TERMINAL_STATUSES
+
+
 @dataclass
 class Action:
     """Base class for actions that can be performed during crawling."""

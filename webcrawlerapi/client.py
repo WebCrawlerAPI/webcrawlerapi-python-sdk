@@ -6,6 +6,7 @@ import requests
 
 from .models import (
     Action,
+    AgentRun,
     CrawlResponse,
     Job,
     JobMarkdownResponse,
@@ -17,6 +18,7 @@ from .models import (
 
 CRAWLER_VERSION = "v1"
 SCRAPER_VERSION = "v2"
+AGENT_TERMINAL_STATUSES = {"done", "error", "canceled"}
 
 
 class WebCrawlerAPI:
@@ -354,6 +356,130 @@ class WebCrawlerAPI:
             )
 
         return self.get_job_markdown_content(job.id)
+
+    def run_agent_async(
+        self,
+        prompt: str,
+        max_spend_usd: float,
+        urls: Optional[List[str]] = None,
+        seed_urls_only: Optional[bool] = None,
+        output_schema: Optional[Dict[str, Any]] = None,
+        model: Optional[str] = None,
+    ) -> AgentRun:
+        """
+        Start a new agent run asynchronously.
+
+        Args:
+            prompt (str): Natural-language task for the agent to complete
+            max_spend_usd (float): Maximum spend for this run in USD
+            urls (list, optional): Optional seed URLs the agent can use while running the task
+            seed_urls_only (bool, optional): If True, the agent only uses the provided seed URLs
+            output_schema (dict, optional): Optional JSON schema for structured agent output
+            model (str, optional): Model to use for the run. Omit to use the API default.
+
+        Returns:
+            AgentRun: The created agent run
+
+        Raises:
+            WebCrawlerApiError: If the API returns an error response
+            requests.exceptions.RequestException: If the HTTP request fails
+        """
+        payload: Dict[str, Any] = {"prompt": prompt, "max_spend_usd": max_spend_usd}
+
+        if urls is not None:
+            payload["urls"] = urls
+        if seed_urls_only is not None:
+            payload["seed_urls_only"] = seed_urls_only
+        if output_schema is not None:
+            payload["output_schema"] = output_schema
+        if model is not None:
+            payload["model"] = model
+
+        response = self.session.post(
+            urljoin(self.base_url, f"/{CRAWLER_VERSION}/agent"), json=payload
+        )
+        if not response.ok:
+            self._raise_for_error(response)
+        return AgentRun(response.json())
+
+    def get_agent_job(self, job_id: str) -> AgentRun:
+        """
+        Get the status and result of a specific agent run.
+
+        Args:
+            job_id (str): The unique identifier of the agent run
+
+        Returns:
+            AgentRun: The agent run status and result
+
+        Raises:
+            WebCrawlerApiError: If the API returns an error response
+            requests.exceptions.RequestException: If the HTTP request fails
+        """
+        response = self.session.get(
+            urljoin(self.base_url, f"/{CRAWLER_VERSION}/agent/job/{job_id}"),
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+        )
+        if not response.ok:
+            self._raise_for_error(response)
+        return AgentRun(response.json())
+
+    def run_agent(
+        self,
+        prompt: str,
+        max_spend_usd: float,
+        urls: Optional[List[str]] = None,
+        seed_urls_only: Optional[bool] = None,
+        output_schema: Optional[Dict[str, Any]] = None,
+        model: Optional[str] = None,
+        max_polls: int = 100,
+    ) -> AgentRun:
+        """
+        Start a new agent run and wait for its completion.
+
+        Args:
+            prompt (str): Natural-language task for the agent to complete
+            max_spend_usd (float): Maximum spend for this run in USD
+            urls (list, optional): Optional seed URLs the agent can use while running the task
+            seed_urls_only (bool, optional): If True, the agent only uses the provided seed URLs
+            output_schema (dict, optional): Optional JSON schema for structured agent output
+            model (str, optional): Model to use for the run. Omit to use the API default.
+            max_polls (int): Maximum number of status checks before raising a timeout (default: 100)
+
+        Returns:
+            AgentRun: The final agent run state after completion
+
+        Raises:
+            WebCrawlerApiError: If the API returns an error response or the run times out
+            requests.exceptions.RequestException: If any API request fails
+        """
+        run = self.run_agent_async(
+            prompt=prompt,
+            max_spend_usd=max_spend_usd,
+            urls=urls,
+            seed_urls_only=seed_urls_only,
+            output_schema=output_schema,
+            model=model,
+        )
+
+        if not run.id:
+            raise WebCrawlerApiError(
+                "invalid_response", "Failed to fetch agent job status"
+            )
+
+        if run.status in AGENT_TERMINAL_STATUSES:
+            return run
+
+        for _ in range(max_polls):
+            time.sleep(2)
+            agent_job = self.get_agent_job(run.id)
+            if agent_job.status in AGENT_TERMINAL_STATUSES:
+                return agent_job
+
+        raise WebCrawlerApiError(
+            "timeout",
+            "Agent run took too long, please retry or increase the number of polling retries",
+        )
 
     def scrape_async(
         self,
