@@ -13,7 +13,6 @@ from webcrawlerapi.models import (
     ScrapeId,
     ScrapeResponse,
     ScrapeResponseError,
-    UploadS3Action,
     WebCrawlerApiError,
 )
 
@@ -98,37 +97,6 @@ class TestWebCrawlerAPI:
         assert payload["scrape_type"] == "markdown"
         assert payload["items_limit"] == 5
         assert payload["respect_robots_txt"] is True
-
-    @responses.activate
-    def test_crawl_async_with_actions(self, client):
-        """Test crawl_async with S3 upload action."""
-        responses.add(
-            responses.POST,
-            "https://api.test.com/v1/crawl",
-            json={"id": "crawl-456"},
-            status=200,
-        )
-
-        s3_action = UploadS3Action(
-            path="crawl-results/",
-            access_key_id="AKIAEXAMPLE",
-            secret_access_key="secret123",
-            bucket="my-bucket",
-        )
-
-        result = client.crawl_async(url="https://example.com", actions=[s3_action])
-
-        assert result.id == "crawl-456"
-
-        # Verify action in payload
-        request = responses.calls[0].request
-        import json
-
-        payload = json.loads(request.body)
-        assert "actions" in payload
-        assert len(payload["actions"]) == 1
-        assert payload["actions"][0]["type"] == "upload_s3"
-        assert payload["actions"][0]["bucket"] == "my-bucket"
 
     @responses.activate
     def test_crawl_async_with_max_age(self, client):

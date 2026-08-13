@@ -68,7 +68,6 @@ class WebCrawlerAPI:
         webhook_url: Optional[str] = None,
         whitelist_regexp: Optional[str] = None,
         blacklist_regexp: Optional[str] = None,
-        actions: Optional[Union[Action, List[Action]]] = None,
         respect_robots_txt: bool = False,
         main_content_only: bool = False,
         max_depth: Optional[int] = None,
@@ -87,7 +86,6 @@ class WebCrawlerAPI:
             webhook_url (str, optional): URL for webhook notifications
             whitelist_regexp (str, optional): Regex pattern for URL whitelist
             blacklist_regexp (str, optional): Regex pattern for URL blacklist
-            actions (Action or List[Action], optional): Actions to perform during crawling
             respect_robots_txt (bool): Whether to respect robots.txt (default: False)
             main_content_only (bool): Whether to extract only main content (default: False)
             max_depth (int, optional): Maximum crawl depth (0 = seed only, 1 = seed + direct links)
@@ -131,9 +129,6 @@ class WebCrawlerAPI:
             payload["main_content_only"] = main_content_only
         if keep_query_params is not None:
             payload["keep_query_params"] = keep_query_params
-        if actions:
-            action_list = [actions] if not isinstance(actions, list) else actions
-            payload["actions"] = [vars(action) for action in action_list]
 
         response = self.session.post(
             urljoin(self.base_url, f"/{CRAWLER_VERSION}/crawl"), json=payload
@@ -237,7 +232,6 @@ class WebCrawlerAPI:
         webhook_url: Optional[str] = None,
         whitelist_regexp: Optional[str] = None,
         blacklist_regexp: Optional[str] = None,
-        actions: Optional[Union[Action, List[Action]]] = None,
         respect_robots_txt: bool = False,
         main_content_only: bool = False,
         max_depth: Optional[int] = None,
@@ -256,7 +250,6 @@ class WebCrawlerAPI:
             webhook_url (str, optional): URL for webhook notifications
             whitelist_regexp (str, optional): Regex pattern for URL whitelist
             blacklist_regexp (str, optional): Regex pattern for URL blacklist
-            actions (Action or List[Action], optional): Actions to perform during crawling
             respect_robots_txt (bool): Whether to respect robots.txt (default: False)
             main_content_only (bool): Whether to extract only main content (default: False)
             max_depth (int, optional): Maximum crawl depth
@@ -279,7 +272,6 @@ class WebCrawlerAPI:
             webhook_url=webhook_url,
             whitelist_regexp=whitelist_regexp,
             blacklist_regexp=blacklist_regexp,
-            actions=actions,
             respect_robots_txt=respect_robots_txt,
             main_content_only=main_content_only,
             max_depth=max_depth,
@@ -315,7 +307,6 @@ class WebCrawlerAPI:
         webhook_url: Optional[str] = None,
         whitelist_regexp: Optional[str] = None,
         blacklist_regexp: Optional[str] = None,
-        actions: Optional[Union[Action, List[Action]]] = None,
         respect_robots_txt: bool = False,
         main_content_only: bool = False,
         max_depth: Optional[int] = None,
@@ -340,7 +331,6 @@ class WebCrawlerAPI:
             webhook_url=webhook_url,
             whitelist_regexp=whitelist_regexp,
             blacklist_regexp=blacklist_regexp,
-            actions=actions,
             respect_robots_txt=respect_robots_txt,
             main_content_only=main_content_only,
             max_depth=max_depth,
