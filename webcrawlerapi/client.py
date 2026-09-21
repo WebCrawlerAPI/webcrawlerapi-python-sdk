@@ -10,6 +10,7 @@ from .models import (
     CrawlResponse,
     Job,
     JobMarkdownResponse,
+    MarkdownResponse,
     ScrapeId,
     ScrapeResponse,
     ScrapeResponseError,
@@ -200,6 +201,29 @@ class WebCrawlerAPI:
         if not response.ok:
             self._raise_for_error(response)
         return response.text
+
+    def markdown(self, url: str) -> MarkdownResponse:
+        """
+        Extract cleaned article markdown (main content only) from a webpage.
+
+        Args:
+            url (str): The URL of the webpage to extract the article markdown from
+
+        Returns:
+            MarkdownResponse: Response containing the extracted markdown
+
+        Raises:
+            WebCrawlerApiError: If the API returns an error response
+            requests.exceptions.RequestException: If the HTTP request fails
+        """
+        response = self.session.post(
+            urljoin(self.base_url, "/markdown"),
+            json={"url": url},
+        )
+        if not response.ok:
+            self._raise_for_error(response)
+        data = response.json()
+        return MarkdownResponse(success=data.get("success", True), markdown=data.get("markdown"))
 
     def cancel_job(self, job_id: str) -> Dict[str, str]:
         """

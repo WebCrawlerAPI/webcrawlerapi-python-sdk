@@ -63,6 +63,14 @@ class JobMarkdownResponse:
 
 
 @dataclass
+class MarkdownResponse:
+    """Response from the markdown endpoint."""
+
+    success: bool
+    markdown: Optional[str] = None
+
+
+@dataclass
 class ScrapeId:
     """Response from an asynchronous scrape request."""
 
