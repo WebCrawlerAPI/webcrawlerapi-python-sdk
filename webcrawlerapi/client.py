@@ -223,7 +223,9 @@ class WebCrawlerAPI:
         if not response.ok:
             self._raise_for_error(response)
         data = response.json()
-        return MarkdownResponse(success=data.get("success", True), markdown=data.get("markdown"))
+        return MarkdownResponse(
+            success=data.get("success", True), markdown=data.get("markdown")
+        )
 
     def cancel_job(self, job_id: str) -> Dict[str, str]:
         """
