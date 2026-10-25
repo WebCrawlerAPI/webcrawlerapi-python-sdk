@@ -428,4 +428,4 @@ class TestJob:
 
     def test_job_terminal_statuses_constant(self):
         """Test that TERMINAL_STATUSES constant is correctly defined."""
-        assert Job.TERMINAL_STATUSES == {"done", "error", "cancelled"}
+        assert Job.TERMINAL_STATUSES == {"done", "error", "cancelled", "canceled"}

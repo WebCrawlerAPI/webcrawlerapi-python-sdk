@@ -284,7 +284,7 @@ class JobItem:
 class Job:
     """Represents a crawling job."""
 
-    TERMINAL_STATUSES = {"done", "error", "cancelled"}
+    TERMINAL_STATUSES = {"done", "error", "cancelled", "canceled"}
 
     def __init__(self, data: Dict[str, Any]):
         self.id: str = data["id"]
@@ -317,5 +317,5 @@ class Job:
 
     @property
     def is_terminal(self) -> bool:
-        """Check if the job is in a terminal state (done, error, or cancelled)."""
+        """Check if the job is in a terminal state (done, error, or cancelled/canceled)."""
         return self.status in self.TERMINAL_STATUSES
