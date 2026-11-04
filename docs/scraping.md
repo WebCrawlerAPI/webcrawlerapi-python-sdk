@@ -2,7 +2,7 @@
 
 ## scrape()
 
-Scrape a single URL synchronously and return the result.
+Scrape a single URL and wait for the result. Under the hood it starts the scrape with `scrape_async()` and polls `get_scrape()` until the status is `done` or an error is returned, waiting the server-recommended delay between polls (2 seconds if none is given). If the scrape is still running after 400 seconds, the last known state is returned with `status` set to `in_progress`.
 
 ```python
 from webcrawlerapi import WebCrawlerAPI
@@ -36,7 +36,7 @@ print(result.links)   # list of URLs found on the page
 
 ## scrape_async()
 
-Start a scrape and return immediately with a job ID.
+Start a scrape and return immediately with a job ID. Use this with `get_scrape()` when you want to manage polling yourself.
 
 ```python
 scrape_id = client.scrape_async(

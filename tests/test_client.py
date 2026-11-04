@@ -351,31 +351,64 @@ class TestWebCrawlerAPI:
         assert result.success is False
 
     @responses.activate
-    def test_scrape_with_polling_success(self, client):
-        """Test scrape method returns done result from sync endpoint."""
+    def test_scrape_starts_async_and_polls_until_done(self, client):
+        """scrape() starts an async scrape and polls get_scrape() until done."""
         responses.add(
             responses.POST,
-            "https://api.test.com/v2/scrape",
+            "https://api.test.com/v2/scrape?async=true",
+            json={"id": "scrape-123"},
+            status=200,
+        )
+        responses.add(
+            responses.GET,
+            "https://api.test.com/v2/scrape/scrape-123",
+            json={
+                "status": "in_progress",
+                "success": False,
+                "recommended_pull_delay_ms": 1000,
+            },
+            status=200,
+        )
+        responses.add(
+            responses.GET,
+            "https://api.test.com/v2/scrape/scrape-123",
             json={
                 "status": "done",
                 "success": True,
                 "markdown": "# Scraped Content",
+                "page_status_code": 200,
+                "page_title": "Test Page",
             },
             status=200,
         )
 
-        result = client.scrape(url="https://example.com")
+        with patch("webcrawlerapi.client.time.sleep") as mock_sleep:
+            result = client.scrape(url="https://example.com")
 
         assert isinstance(result, ScrapeResponse)
         assert result.status == "done"
         assert result.markdown == "# Scraped Content"
+        assert result.page_status_code == 200
+        assert result.page_title == "Test Page"
+
+        assert len(responses.calls) == 3
+        assert responses.calls[0].request.url == (
+            "https://api.test.com/v2/scrape?async=true"
+        )
+        mock_sleep.assert_called_once_with(1.0)  # recommended_pull_delay_ms / 1000
 
     @responses.activate
-    def test_scrape_with_polling_error(self, client):
-        """Test scrape method that gets error from sync endpoint."""
+    def test_scrape_returns_error_from_poll(self, client):
+        """scrape() returns ScrapeResponseError when polling yields an error."""
         responses.add(
             responses.POST,
-            "https://api.test.com/v2/scrape",
+            "https://api.test.com/v2/scrape?async=true",
+            json={"id": "scrape-123"},
+            status=200,
+        )
+        responses.add(
+            responses.GET,
+            "https://api.test.com/v2/scrape/scrape-123",
             json={
                 "status": "error",
                 "success": False,
@@ -385,30 +418,46 @@ class TestWebCrawlerAPI:
             status=200,
         )
 
-        result = client.scrape(url="https://example.com")
+        with patch("webcrawlerapi.client.time.sleep") as mock_sleep:
+            result = client.scrape(url="https://example.com")
 
         assert isinstance(result, ScrapeResponseError)
         assert result.error_code == "FETCH_ERROR"
+        mock_sleep.assert_not_called()
 
     @responses.activate
-    def test_scrape_with_polling_max_polls(self, client):
-        """Test scrape method returns full response data from sync endpoint."""
+    def test_scrape_times_out_after_400_seconds(self, client):
+        """scrape() stops polling after 400 seconds and returns the last state."""
         responses.add(
             responses.POST,
-            "https://api.test.com/v2/scrape",
+            "https://api.test.com/v2/scrape?async=true",
+            json={"id": "scrape-123"},
+            status=200,
+        )
+        responses.add(
+            responses.GET,
+            "https://api.test.com/v2/scrape/scrape-123",
             json={
-                "status": "done",
-                "success": True,
-                "markdown": "# Content",
-                "page_status_code": 200,
-                "page_title": "Test Page",
+                "status": "in_progress",
+                "success": False,
+                "recommended_pull_delay_ms": 1000,
             },
             status=200,
         )
 
-        result = client.scrape(url="https://example.com")
+        clock = {"now": 1000.0}
+
+        def fake_sleep(seconds):
+            clock["now"] += seconds
+
+        with patch("webcrawlerapi.client.time.monotonic", lambda: clock["now"]), patch(
+            "webcrawlerapi.client.time.sleep", side_effect=fake_sleep
+        ) as mock_sleep:
+            result = client.scrape(url="https://example.com")
 
         assert isinstance(result, ScrapeResponse)
-        assert result.status == "done"
-        assert result.page_status_code == 200
-        assert result.page_title == "Test Page"
+        assert result.status == "in_progress"
+        assert mock_sleep.call_count == 400
+        assert sum(c.args[0] for c in mock_sleep.call_args_list) == pytest.approx(400.0)
+        # 1 initial poll + 400 polls after each 1s sleep
+        assert len(responses.calls) == 402  # 1 POST + 401 GETs

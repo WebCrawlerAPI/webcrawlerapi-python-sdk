@@ -90,6 +90,7 @@ class ScrapeResponse:
     page_title: Optional[str] = None
     structured_data: Optional[Dict[str, Any]] = None
     links: Optional[List[str]] = None
+    recommended_pull_delay_ms: Optional[int] = None
 
 
 @dataclass
@@ -100,6 +101,7 @@ class ScrapeResponseError:
     error_code: str
     error_message: str
     status: Optional[str] = None
+    recommended_pull_delay_ms: Optional[int] = None
 
 
 class AgentRun:

@@ -14,7 +14,7 @@ Basic usage:
     >>> # Or asynchronous crawling
     >>> response = crawler.crawl_async(url="https://example.com")
     >>> job = crawler.get_job(response.id)
-    >>> # Single page scraping (synchronous)
+    >>> # Single page scraping (starts the scrape and waits for the result)
     >>> result = crawler.scrape(url="https://example.com", output_format="markdown")
     >>> if result.success:
     ...     print(result.markdown)  # Access the scraped content

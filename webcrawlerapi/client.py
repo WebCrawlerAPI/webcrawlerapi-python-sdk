@@ -26,6 +26,8 @@ class WebCrawlerAPI:
     """Python SDK for WebCrawler API."""
 
     DEFAULT_POLL_DELAY_SECONDS = 5
+    SCRAPE_DEFAULT_POLL_DELAY_SECONDS = 2
+    SCRAPE_TIMEOUT_SECONDS = 400
 
     def __init__(self, api_key: str, base_url: str = "https://api.webcrawlerapi.com"):
         """
@@ -609,6 +611,9 @@ class WebCrawlerAPI:
                 page_title=response_data.get("page_title"),
                 structured_data=response_data.get("structured_data"),
                 links=response_data.get("links"),
+                recommended_pull_delay_ms=response_data.get(
+                    "recommended_pull_delay_ms"
+                ),
             )
         elif status == "error":
             return ScrapeResponseError(
@@ -616,9 +621,19 @@ class WebCrawlerAPI:
                 error_code=response_data.get("error_code", "unknown"),
                 error_message=response_data.get("error_message", "Scraping failed"),
                 status=status,
+                recommended_pull_delay_ms=response_data.get(
+                    "recommended_pull_delay_ms"
+                ),
             )
         else:  # in_progress or any other status
-            return ScrapeResponse(success=False, status=status, page_status_code=0)
+            return ScrapeResponse(
+                success=False,
+                status=status,
+                page_status_code=0,
+                recommended_pull_delay_ms=response_data.get(
+                    "recommended_pull_delay_ms"
+                ),
+            )
 
     def scrape(
         self,
@@ -636,10 +651,13 @@ class WebCrawlerAPI:
         keep_query_params: Optional[bool] = None,
     ) -> Union[ScrapeResponse, ScrapeResponseError]:
         """
-        Scrape a single URL synchronously and return the result.
+        Scrape a single URL and wait for the result.
 
-        Calls the synchronous scrape endpoint which blocks until the scrape is complete.
-        For fire-and-poll behaviour use scrape_async() + get_scrape() instead.
+        Starts the scrape with scrape_async() and polls get_scrape() until the status is
+        "done" or an error is returned, waiting the server-recommended delay between polls
+        (falls back to 2 seconds). Polling stops after 400 seconds in total; on timeout
+        the last known state is returned.
+        For manual control use scrape_async() + get_scrape() instead.
 
         Args:
             url (str): The URL to scrape
@@ -656,66 +674,42 @@ class WebCrawlerAPI:
             keep_query_params (bool, optional): Keep URL query params when storing the URL (default: True).
 
         Returns:
-            Union[ScrapeResponse, ScrapeResponseError]: The scrape result
+            Union[ScrapeResponse, ScrapeResponseError]: The scrape result, or the last known
+            state (status "in_progress") if the 400 second timeout is reached
 
         Raises:
             WebCrawlerApiError: If the API returns an error response
             requests.exceptions.RequestException: If the HTTP request fails
         """
-        payload: Dict[str, Any] = {"url": url}
+        scrape_id = self.scrape_async(
+            url,
+            output_formats=output_formats,
+            output_format=output_format,
+            webhook_url=webhook_url,
+            clean_selectors=clean_selectors,
+            prompt=prompt,
+            response_schema=response_schema,
+            actions=actions,
+            main_content_only=main_content_only,
+            max_age=max_age,
+            respect_robots_txt=respect_robots_txt,
+            keep_query_params=keep_query_params,
+        ).id
 
-        if output_formats is not None:
-            payload["output_formats"] = output_formats
-        elif output_format is not None:
-            payload["output_format"] = output_format
+        deadline = time.monotonic() + self.SCRAPE_TIMEOUT_SECONDS
+        result = self.get_scrape(scrape_id)
 
-        if webhook_url:
-            payload["webhook_url"] = webhook_url
-        if clean_selectors:
-            payload["clean_selectors"] = clean_selectors
-        if prompt:
-            payload["prompt"] = prompt
-        if response_schema is not None:
-            payload["response_schema"] = response_schema
-        if max_age is not None:
-            payload["max_age"] = max_age
-        if main_content_only:
-            payload["main_content_only"] = main_content_only
-        if respect_robots_txt:
-            payload["respect_robots_txt"] = respect_robots_txt
-        if keep_query_params is not None:
-            payload["keep_query_params"] = keep_query_params
-        if actions:
-            action_list = [actions] if not isinstance(actions, list) else actions
-            payload["actions"] = [vars(action) for action in action_list]
+        while not isinstance(result, ScrapeResponseError) and result.status != "done":
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return result
 
-        response = self.session.post(
-            urljoin(self.base_url, f"/{SCRAPER_VERSION}/scrape"),
-            json=payload,
-        )
-
-        if not response.ok:
-            self._raise_for_error(response)
-
-        response_data = response.json()
-        status = response_data.get("status")
-
-        if status == "error":
-            return ScrapeResponseError(
-                success=False,
-                error_code=response_data.get("error_code", "unknown"),
-                error_message=response_data.get("error_message", "Scraping failed"),
-                status=status,
+            delay_ms = result.recommended_pull_delay_ms
+            delay = (
+                delay_ms / 1000 if delay_ms else self.SCRAPE_DEFAULT_POLL_DELAY_SECONDS
             )
+            time.sleep(min(delay, remaining))
 
-        return ScrapeResponse(
-            success=response_data.get("success", True),
-            status=status,
-            markdown=response_data.get("markdown"),
-            cleaned_content=response_data.get("cleaned_content"),
-            raw_content=response_data.get("raw_content"),
-            page_status_code=response_data.get("page_status_code", 0),
-            page_title=response_data.get("page_title"),
-            structured_data=response_data.get("structured_data"),
-            links=response_data.get("links"),
-        )
+            result = self.get_scrape(scrape_id)
+
+        return result

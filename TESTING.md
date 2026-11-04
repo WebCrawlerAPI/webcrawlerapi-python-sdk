@@ -67,7 +67,7 @@ This will generate an HTML coverage report in `htmlcov/index.html`.
 #### Client Tests (`test_client.py`)
 - **Initialization**: Testing client setup with API keys and base URLs
 - **Async Methods**: Testing `crawl_async()` and `scrape_async()` methods
-- **Synchronous Methods**: Testing `crawl()` and `scrape()` with polling logic
+- **Synchronous Methods**: Testing `crawl()` and `scrape()` (async start plus polling logic)
 - **Job Management**: Testing `get_job()` and `cancel_job()` methods
 - **Error Handling**: Testing HTTP errors and API error responses
 - **Actions**: Testing S3 upload actions and other integrations
