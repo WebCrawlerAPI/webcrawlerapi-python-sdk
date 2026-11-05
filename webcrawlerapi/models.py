@@ -1,5 +1,5 @@
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -102,6 +102,77 @@ class ScrapeResponseError:
     error_message: str
     status: Optional[str] = None
     recommended_pull_delay_ms: Optional[int] = None
+
+
+@dataclass
+class BatchScrapeInvalidUrl:
+    """A URL rejected or deduplicated when creating a batch scrape."""
+
+    url: str
+    error_code: str
+    error_message: str
+
+
+@dataclass
+class BatchScrapeId:
+    """Response from creating a batch scrape."""
+
+    id: str
+    status_url: str = ""
+    invalid_urls: List[BatchScrapeInvalidUrl] = field(default_factory=list)
+
+
+@dataclass
+class BatchScrapeItem:
+    """A single URL result inside a batch scrape."""
+
+    url: str
+    status: str
+    page_status_code: Optional[int] = None
+    title: Optional[str] = None
+    markdown_url: Optional[str] = None
+    cleaned_url: Optional[str] = None
+    html_url: Optional[str] = None
+    from_cache: bool = False
+    error_code: Optional[str] = None
+    error_message: Optional[str] = None
+
+
+@dataclass
+class BatchScrape:
+    """Batch scrape status with one page of items."""
+
+    TERMINAL_STATUSES = {"completed", "failed", "cancelled", "canceled"}
+
+    id: str
+    status: str
+    total: int = 0
+    completed: int = 0
+    failed: int = 0
+    canceled: int = 0
+    data: List[BatchScrapeItem] = field(default_factory=list)
+    next: str = ""
+
+    @property
+    def is_terminal(self) -> bool:
+        return self.status in self.TERMINAL_STATUSES
+
+
+@dataclass
+class BatchScrapeError:
+    """A failed URL in a batch scrape."""
+
+    url: str
+    error_code: str
+    error_message: str
+
+
+@dataclass
+class BatchScrapeErrors:
+    """Response from the batch scrape errors endpoint."""
+
+    errors: List[BatchScrapeError] = field(default_factory=list)
+    robots_blocked: List[str] = field(default_factory=list)
 
 
 class AgentRun:

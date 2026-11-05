@@ -26,6 +26,12 @@ from .client import WebCrawlerAPI
 from .models import (
     Action,
     AgentRun,
+    BatchScrape,
+    BatchScrapeError,
+    BatchScrapeErrors,
+    BatchScrapeId,
+    BatchScrapeInvalidUrl,
+    BatchScrapeItem,
     CrawlResponse,
     Job,
     JobItem,
@@ -53,4 +59,10 @@ __all__ = [
     "Action",
     "UploadS3Action",
     "AgentRun",
+    "BatchScrape",
+    "BatchScrapeError",
+    "BatchScrapeErrors",
+    "BatchScrapeId",
+    "BatchScrapeInvalidUrl",
+    "BatchScrapeItem",
 ]

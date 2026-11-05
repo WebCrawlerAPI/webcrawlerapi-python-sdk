@@ -461,3 +461,119 @@ class TestWebCrawlerAPI:
         assert sum(c.args[0] for c in mock_sleep.call_args_list) == pytest.approx(400.0)
         # 1 initial poll + 400 polls after each 1s sleep
         assert len(responses.calls) == 402  # 1 POST + 401 GETs
+
+
+class TestBatchScrape:
+    @pytest.fixture
+    def client(self):
+        return WebCrawlerAPI(api_key="test-api-key", base_url="https://api.test.com")
+
+    @responses.activate
+    def test_scrape_list_runs_batch_and_polls(self, client):
+        responses.add(
+            responses.POST,
+            "https://api.test.com/v2/batch/scrape",
+            json={
+                "id": "b1",
+                "status_url": "https://api.test.com/v2/batch/scrape/b1",
+                "invalid_urls": [
+                    {
+                        "url": "bad",
+                        "error_code": "invalid_request",
+                        "error_message": "invalid url",
+                    }
+                ],
+            },
+        )
+        status_url = "https://api.test.com/v2/batch/scrape/b1"
+        responses.add(
+            responses.GET,
+            status_url,
+            json={
+                "id": "b1",
+                "status": "scraping",
+                "total": 1,
+                "completed": 0,
+                "failed": 0,
+                "canceled": 0,
+                "data": [],
+            },
+        )
+        responses.add(
+            responses.GET,
+            status_url,
+            json={
+                "id": "b1",
+                "status": "completed",
+                "total": 1,
+                "completed": 1,
+                "failed": 0,
+                "canceled": 0,
+                "data": [
+                    {
+                        "url": "https://a.com",
+                        "status": "done",
+                        "markdown_url": "https://m",
+                    }
+                ],
+                "next": "",
+            },
+        )
+        with patch("webcrawlerapi.client.time.sleep"):
+            batch = client.scrape(["https://a.com", "bad"], max_concurrency=5)
+        assert batch.status == "completed"
+        assert batch.data[0].markdown_url == "https://m"
+        import json
+
+        body = json.loads(responses.calls[0].request.body)
+        assert body == {"urls": ["https://a.com", "bad"], "max_concurrency": 5}
+
+    @responses.activate
+    def test_batch_errors_cancel_and_async(self, client):
+        responses.add(
+            responses.POST,
+            "https://api.test.com/v2/batch/scrape",
+            json={
+                "id": "b1",
+                "status_url": "u",
+                "invalid_urls": [{"url": "x", "error_code": "c", "error_message": "m"}],
+            },
+        )
+        created = client.scrape_batch_async(urls=["x"])
+        assert created.invalid_urls[0].url == "x"
+
+        responses.add(
+            responses.GET,
+            "https://api.test.com/v2/batch/scrape/b1/errors",
+            json={
+                "errors": [
+                    {
+                        "url": "u",
+                        "error_code": "webpage_non_success",
+                        "error_message": "m",
+                    }
+                ],
+                "robots_blocked": ["r"],
+            },
+        )
+        errs = client.get_batch_errors("b1")
+        assert errs.errors[0].error_code == "webpage_non_success"
+        assert errs.robots_blocked == ["r"]
+
+        responses.add(
+            responses.DELETE,
+            "https://api.test.com/v2/batch/scrape/b1",
+            json={"status": "canceled"},
+        )
+        assert client.cancel_batch("b1") == {"status": "canceled"}
+
+    @responses.activate
+    def test_batch_error_raises(self, client):
+        responses.add(
+            responses.GET,
+            "https://api.test.com/v2/batch/scrape/nope",
+            status=404,
+            json={"error_code": "not_found", "error_message": "no batch"},
+        )
+        with pytest.raises(WebCrawlerApiError):
+            client.get_batch("nope")

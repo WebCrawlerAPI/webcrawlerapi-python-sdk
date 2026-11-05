@@ -1,5 +1,5 @@
 import time
-from typing import Any, Dict, List, Optional, Union, cast
+from typing import Any, Dict, List, Optional, Union, cast, overload
 from urllib.parse import urljoin
 
 import requests
@@ -7,6 +7,12 @@ import requests
 from .models import (
     Action,
     AgentRun,
+    BatchScrape,
+    BatchScrapeError,
+    BatchScrapeErrors,
+    BatchScrapeId,
+    BatchScrapeInvalidUrl,
+    BatchScrapeItem,
     CrawlResponse,
     Job,
     JobMarkdownResponse,
@@ -19,6 +25,7 @@ from .models import (
 
 CRAWLER_VERSION = "v1"
 SCRAPER_VERSION = "v2"
+BATCH_VERSION = "v2"
 AGENT_TERMINAL_STATUSES = {"done", "error", "canceled"}
 
 
@@ -28,6 +35,8 @@ class WebCrawlerAPI:
     DEFAULT_POLL_DELAY_SECONDS = 5
     SCRAPE_DEFAULT_POLL_DELAY_SECONDS = 2
     SCRAPE_TIMEOUT_SECONDS = 400
+    BATCH_POLL_DELAY_SECONDS = 2
+    BATCH_TIMEOUT_SECONDS = 3600
 
     def __init__(self, api_key: str, base_url: str = "https://api.webcrawlerapi.com"):
         """
@@ -635,6 +644,7 @@ class WebCrawlerAPI:
                 ),
             )
 
+    @overload
     def scrape(
         self,
         url: str,
@@ -649,9 +659,53 @@ class WebCrawlerAPI:
         max_age: Optional[int] = None,
         respect_robots_txt: bool = False,
         keep_query_params: Optional[bool] = None,
-    ) -> Union[ScrapeResponse, ScrapeResponseError]:
+    ) -> Union[ScrapeResponse, ScrapeResponseError]: ...
+
+    @overload
+    def scrape(
+        self,
+        url: List[str],
+        *,
+        output_formats: Optional[List[str]] = None,
+        webhook_url: Optional[str] = None,
+        clean_selectors: Optional[str] = None,
+        main_content_only: bool = False,
+        max_age: Optional[int] = None,
+        respect_robots_txt: bool = False,
+        max_concurrency: Optional[int] = None,
+        ignore_invalid_urls: Optional[bool] = None,
+        timeout_seconds: Optional[int] = None,
+    ) -> BatchScrape: ...
+
+    def scrape(
+        self,
+        url: Union[str, List[str]],
+        output_formats: Optional[List[str]] = None,
+        output_format: Optional[str] = None,
+        webhook_url: Optional[str] = None,
+        clean_selectors: Optional[str] = None,
+        prompt: Optional[str] = None,
+        response_schema: Optional[Dict[str, Any]] = None,
+        actions: Optional[Union[Action, List[Action]]] = None,
+        main_content_only: bool = False,
+        max_age: Optional[int] = None,
+        respect_robots_txt: bool = False,
+        keep_query_params: Optional[bool] = None,
+        max_concurrency: Optional[int] = None,
+        ignore_invalid_urls: Optional[bool] = None,
+        timeout_seconds: Optional[int] = None,
+    ) -> Union[ScrapeResponse, ScrapeResponseError, BatchScrape]:
         """
-        Scrape a single URL and wait for the result.
+        Scrape a single URL, or a list of URLs as a batch, and wait for the result.
+
+        Passing a list of URLs creates a batch scrape, polls until it is completed, failed or
+        cancelled (timeout_seconds, default 3600) and returns a BatchScrape with the first page of
+        items; follow `next` with get_batch(id, cursor=...) for larger batches. Batch-only
+        arguments: max_concurrency, ignore_invalid_urls, timeout_seconds. Single-URL-only
+        arguments (output_format, prompt, response_schema, actions, keep_query_params) are
+        ignored for a batch. For manual batch control use scrape_batch_async() + get_batch().
+
+        Single URL:
 
         Starts the scrape with scrape_async() and polls get_scrape() until the status is
         "done" or an error is returned, waiting the server-recommended delay between polls
@@ -660,7 +714,7 @@ class WebCrawlerAPI:
         For manual control use scrape_async() + get_scrape() instead.
 
         Args:
-            url (str): The URL to scrape
+            url (str or List[str]): The URL to scrape, or a list of URLs for a batch
             output_formats (list, optional): Output formats, e.g. ['markdown', 'html'].
             output_format (str, optional): Deprecated. Use output_formats instead.
             webhook_url (str, optional): URL to receive a POST request when scraping is complete
@@ -672,15 +726,32 @@ class WebCrawlerAPI:
             max_age (int, optional): Max age in seconds for cached content. 0 = always fresh.
             respect_robots_txt (bool): Respect robots.txt and return error if URL is disallowed (default: False).
             keep_query_params (bool, optional): Keep URL query params when storing the URL (default: True).
+            max_concurrency (int, optional): Batch only. Max URLs scraped in parallel.
+            ignore_invalid_urls (bool, optional): Batch only. Skip invalid URLs and report them (default: True).
+            timeout_seconds (int, optional): Batch only. Max wait in seconds (default 3600).
 
         Returns:
-            Union[ScrapeResponse, ScrapeResponseError]: The scrape result, or the last known
-            state (status "in_progress") if the 400 second timeout is reached
+            ScrapeResponse or ScrapeResponseError for a single URL (the last known state, status
+            "in_progress", if the 400 second timeout is reached); BatchScrape for a list of URLs
 
         Raises:
             WebCrawlerApiError: If the API returns an error response
             requests.exceptions.RequestException: If the HTTP request fails
         """
+        if isinstance(url, (list, tuple)):
+            return self._scrape_batch(
+                list(url),
+                output_formats=output_formats,
+                main_content_only=main_content_only or None,
+                clean_selectors=clean_selectors,
+                max_concurrency=max_concurrency,
+                ignore_invalid_urls=ignore_invalid_urls,
+                webhook_url=webhook_url,
+                max_age=max_age,
+                respect_robots_txt=respect_robots_txt or None,
+                timeout_seconds=timeout_seconds,
+            )
+
         scrape_id = self.scrape_async(
             url,
             output_formats=output_formats,
@@ -713,3 +784,190 @@ class WebCrawlerAPI:
             result = self.get_scrape(scrape_id)
 
         return result
+
+    def scrape_batch_async(
+        self,
+        urls: List[str],
+        output_formats: Optional[List[str]] = None,
+        main_content_only: Optional[bool] = None,
+        clean_selectors: Optional[str] = None,
+        max_concurrency: Optional[int] = None,
+        ignore_invalid_urls: Optional[bool] = None,
+        webhook_url: Optional[str] = None,
+        max_age: Optional[int] = None,
+        respect_robots_txt: Optional[bool] = None,
+    ) -> BatchScrapeId:
+        """
+        Create a batch scrape for a list of URLs and return immediately.
+
+        Args:
+            urls (list): URLs to scrape (max is your plan's job items limit)
+            output_formats (list, optional): markdown, cleaned, html, links, images (default: markdown)
+            main_content_only (bool, optional): Extract only the main content
+            clean_selectors (str, optional): CSS selectors to remove from the output
+            max_concurrency (int, optional): Max URLs scraped in parallel. 0/None = no cap
+            ignore_invalid_urls (bool, optional): Skip invalid URLs and report them (default: True)
+            webhook_url (str, optional): URL called once when the batch finishes
+            max_age (int, optional): Cache duration in seconds. 0 = bypass cache
+            respect_robots_txt (bool, optional): Respect robots.txt (default: False)
+
+        Returns:
+            BatchScrapeId: batch id, status_url and invalid_urls
+
+        Raises:
+            WebCrawlerApiError: If the API returns an error response
+            requests.exceptions.RequestException: If the HTTP request fails
+        """
+        payload: Dict[str, Any] = {"urls": urls}
+        optional = {
+            "output_formats": output_formats,
+            "main_content_only": main_content_only,
+            "clean_selectors": clean_selectors,
+            "max_concurrency": max_concurrency,
+            "ignore_invalid_urls": ignore_invalid_urls,
+            "webhook_url": webhook_url,
+            "max_age": max_age,
+            "respect_robots_txt": respect_robots_txt,
+        }
+        payload.update({k: v for k, v in optional.items() if v is not None})
+
+        response = self.session.post(
+            urljoin(self.base_url, f"/{BATCH_VERSION}/batch/scrape"), json=payload
+        )
+        if not response.ok:
+            self._raise_for_error(response)
+
+        data = response.json()
+        return BatchScrapeId(
+            id=data["id"],
+            status_url=data.get("status_url", ""),
+            invalid_urls=[
+                BatchScrapeInvalidUrl(
+                    url=i.get("url", ""),
+                    error_code=i.get("error_code", ""),
+                    error_message=i.get("error_message", ""),
+                )
+                for i in (data.get("invalid_urls") or [])
+            ],
+        )
+
+    def get_batch(
+        self, batch_id: str, limit: Optional[int] = None, cursor: Optional[str] = None
+    ) -> BatchScrape:
+        """
+        Get batch progress and one page of items.
+
+        Args:
+            batch_id (str): The batch id
+            limit (int, optional): Items per page, 1 to 500 (default 100)
+            cursor (str, optional): `next` value from the previous page
+
+        Raises:
+            WebCrawlerApiError: If the API returns an error response
+        """
+        params: Dict[str, Any] = {}
+        if limit is not None:
+            params["limit"] = limit
+        if cursor:
+            params["cursor"] = cursor
+
+        response = self.session.get(
+            urljoin(self.base_url, f"/{BATCH_VERSION}/batch/scrape/{batch_id}"),
+            params=params,
+        )
+        if not response.ok:
+            self._raise_for_error(response)
+
+        data = response.json()
+        return BatchScrape(
+            id=data.get("id", batch_id),
+            status=data.get("status", ""),
+            total=data.get("total", 0),
+            completed=data.get("completed", 0),
+            failed=data.get("failed", 0),
+            canceled=data.get("canceled", 0),
+            data=[
+                BatchScrapeItem(
+                    url=i.get("url", ""),
+                    status=i.get("status", ""),
+                    page_status_code=i.get("page_status_code"),
+                    title=i.get("title"),
+                    markdown_url=i.get("markdown_url"),
+                    cleaned_url=i.get("cleaned_url"),
+                    html_url=i.get("html_url"),
+                    from_cache=bool(i.get("from_cache", False)),
+                    error_code=i.get("error_code"),
+                    error_message=i.get("error_message"),
+                )
+                for i in (data.get("data") or [])
+            ],
+            next=data.get("next") or "",
+        )
+
+    def get_batch_errors(self, batch_id: str) -> BatchScrapeErrors:
+        """List failed URLs of a batch; robots.txt-blocked URLs are in `robots_blocked`."""
+        response = self.session.get(
+            urljoin(self.base_url, f"/{BATCH_VERSION}/batch/scrape/{batch_id}/errors")
+        )
+        if not response.ok:
+            self._raise_for_error(response)
+
+        data = response.json()
+        return BatchScrapeErrors(
+            errors=[
+                BatchScrapeError(
+                    url=e.get("url", ""),
+                    error_code=e.get("error_code", ""),
+                    error_message=e.get("error_message", ""),
+                )
+                for e in (data.get("errors") or [])
+            ],
+            robots_blocked=list(data.get("robots_blocked") or []),
+        )
+
+    def cancel_batch(self, batch_id: str) -> Dict[str, str]:
+        """Cancel a running batch. Items that did not start are not charged."""
+        response = self.session.delete(
+            urljoin(self.base_url, f"/{BATCH_VERSION}/batch/scrape/{batch_id}")
+        )
+        if not response.ok:
+            self._raise_for_error(response)
+        return cast(Dict[str, str], response.json())
+
+    def _scrape_batch(
+        self,
+        urls: List[str],
+        output_formats: Optional[List[str]] = None,
+        main_content_only: Optional[bool] = None,
+        clean_selectors: Optional[str] = None,
+        max_concurrency: Optional[int] = None,
+        ignore_invalid_urls: Optional[bool] = None,
+        webhook_url: Optional[str] = None,
+        max_age: Optional[int] = None,
+        respect_robots_txt: Optional[bool] = None,
+        timeout_seconds: Optional[int] = None,
+    ) -> BatchScrape:
+        created = self.scrape_batch_async(
+            urls,
+            output_formats=output_formats,
+            main_content_only=main_content_only,
+            clean_selectors=clean_selectors,
+            max_concurrency=max_concurrency,
+            ignore_invalid_urls=ignore_invalid_urls,
+            webhook_url=webhook_url,
+            max_age=max_age,
+            respect_robots_txt=respect_robots_txt,
+        )
+
+        deadline = time.monotonic() + (timeout_seconds or self.BATCH_TIMEOUT_SECONDS)
+        while True:
+            batch = self.get_batch(created.id)
+            if batch.is_terminal:
+                return batch
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise WebCrawlerApiError(
+                    "timeout",
+                    "Batch scrape took too long, use scrape_batch_async + get_batch to keep polling",
+                )
+            time.sleep(min(self.BATCH_POLL_DELAY_SECONDS, remaining))
